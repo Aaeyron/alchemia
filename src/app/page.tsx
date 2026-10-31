@@ -6,10 +6,11 @@ import { Chip } from "@/components/Chip";
 import { ErrorBox } from "@/components/ErrorBox";
 import { IdeaCard } from "@/components/IdeaCard";
 import { Mascot } from "@/components/Mascot";
+import { PhotoBoxes } from "@/components/PhotoBoxes";
 import { ResultPanel } from "@/components/ResultPanel";
 import { TweakPanel, type TweakKind } from "@/components/TweakPanel";
 import { emojiFor } from "@/lib/emoji";
-import type { Idea } from "@/lib/types";
+import type { Idea, PhotoBox } from "@/lib/types";
 
 // Same shape the /api/detect route returns.
 type DetectedObject = {
@@ -72,6 +73,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Boxes around the objects in the photo (from SAM). Optional: the chips work without them.
+  const [boxes, setBoxes] = useState<PhotoBox[]>([]);
+  const [segmenting, setSegmenting] = useState(false);
+  // Which box should pop because its chip was just tapped (`count` changes on every tap).
+  const [flash, setFlash] = useState<{ index: number; count: number } | null>(null);
+  // Bumped on every new photo, so boxes for an older photo are ignored.
+  const photoRequest = useRef(0);
+
   // Brewing: what the user needs, their limits, and the ideas Muse Spark comes back with.
   const [goal, setGoal] = useState("");
   const [budget, setBudget] = useState(0);
@@ -129,9 +138,13 @@ export default function Home() {
     event.target.value = ""; // allow picking the same file again
     if (!file) return;
 
+    const id = ++photoRequest.current;
     setError(null);
     setObjects([]);
     setSelected([]);
+    setBoxes([]);
+    setSegmenting(false);
+    setFlash(null);
     setIdeas([]);
     setChosen(null);
     clearResult();
@@ -150,10 +163,35 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "Detection failed.");
 
       setObjects(data.objects);
+      findBoxes(image, data.objects, id); // runs in the background; no need to wait
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Ask /api/segment for boxes around the detected objects (first 8).
+  // Any failure just means no boxes: the chips keep working.
+  async function findBoxes(image: string, found: DetectedObject[], id: number) {
+    const names = found.slice(0, 8).map((obj) => obj.name);
+    if (names.length === 0) return;
+    setSegmenting(true);
+
+    try {
+      const res = await fetch("/api/segment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image, names }),
+      });
+      const data = await res.json();
+      if (id === photoRequest.current && res.ok && Array.isArray(data.boxes)) {
+        setBoxes(data.boxes);
+      }
+    } catch (err) {
+      console.error("Couldn't find boxes:", err);
+    } finally {
+      if (id === photoRequest.current) setSegmenting(false);
     }
   }
 
@@ -162,6 +200,17 @@ export default function Home() {
       current.includes(index) ? current.filter((i) => i !== index) : [...current, index]
     );
   }
+
+  // Tapping a chip also makes its box in the photo pop.
+  function toggleFromChip(index: number) {
+    toggle(index);
+    setFlash((current) => ({ index, count: (current?.count ?? 0) + 1 }));
+  }
+
+  // Match each box to its detected object by name.
+  const photoBoxes = boxes
+    .map((box) => ({ box, index: objects.findIndex((obj) => obj.name === box.name) }))
+    .filter((item) => item.index !== -1);
 
   async function brew() {
     setError(null);
@@ -322,15 +371,18 @@ export default function Home() {
         </label>
 
         {photo && (
-          // Polaroid-style frame. A plain <img> is fine: the source is a local data URL.
-          <div className="sticker mx-auto w-full max-w-md rotate-1 bg-white p-3 pb-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo}
-              alt="Your uploaded photo"
-              className="max-h-80 w-full rounded-xl object-contain"
-            />
-          </div>
+          // Polaroid-style frame, with tappable boxes once SAM has found the objects.
+          <PhotoBoxes
+            photo={photo}
+            boxes={photoBoxes}
+            selected={selected}
+            onToggle={toggle}
+            flash={flash}
+          />
+        )}
+
+        {segmenting && (
+          <p className="text-center text-base font-medium">🔎 Finding the edges…</p>
         )}
 
         {loading && (
@@ -355,7 +407,7 @@ export default function Home() {
                   emoji={emojiFor(obj.name)}
                   label={obj.name}
                   selected={selected.includes(i)}
-                  onToggle={() => toggle(i)}
+                  onToggle={() => toggleFromChip(i)}
                   title={`${obj.color} · ${obj.material}`}
                 />
               ))}
