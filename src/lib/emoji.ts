@@ -14,6 +14,7 @@ const EMOJI_BY_KEYWORD: [string, string][] = [
   ["box", "📦"],
   ["cardboard", "📦"],
   ["paper", "📄"],
+  ["notebook", "📓"],
   ["book", "📚"],
   ["pencil", "✏️"],
   ["pen", "🖊️"],

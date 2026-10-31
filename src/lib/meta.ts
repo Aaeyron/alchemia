@@ -6,6 +6,7 @@ import "server-only";
 const API_KEY = process.env.MODEL_API_KEY;
 const BASE_URL = process.env.MODEL_API_BASE_URL || "https://api.meta.ai/v1";
 const MODEL = process.env.MODEL_API_MODEL || "muse-spark-1.3";
+const IMAGE_MODEL = process.env.MODEL_API_IMAGE_MODEL || "muse-image-1.0";
 
 // One piece of a chat message: either text or an image (OpenAI-compatible format).
 type ContentPart =
@@ -49,6 +50,43 @@ export async function askSpark(prompt: string, imageDataUrl?: string): Promise<s
     throw new Error("Muse Spark returned an unexpected response shape.");
   }
   return reply;
+}
+
+/**
+ * Generate one picture from a text prompt with Muse Image (POST /images/generations).
+ * Returns something an <img> can show: a data URL (the default base64 response)
+ * or a temporary URL if the API sends one instead.
+ */
+export async function generateImage(prompt: string): Promise<string> {
+  if (!API_KEY) {
+    throw new Error("MODEL_API_KEY is not set. Add it to .env.local and restart the dev server.");
+  }
+
+  const res = await fetch(`${BASE_URL}/images/generations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({ model: IMAGE_MODEL, prompt, n: 1 }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Muse Image request failed (${res.status}): ${body}`);
+  }
+
+  // Documented response: { data: [{ b64_json } or { url }], output_format: "webp" | "png" | "jpeg", ... }
+  const data = await res.json();
+  const image = data?.data?.[0];
+  if (typeof image?.b64_json === "string") {
+    const format = data.output_format || "webp";
+    return `data:image/${format};base64,${image.b64_json}`;
+  }
+  if (typeof image?.url === "string") {
+    return image.url;
+  }
+  throw new Error("Muse Image returned an unexpected response shape.");
 }
 
 /**

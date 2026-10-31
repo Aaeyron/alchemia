@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { BrewForm } from "@/components/BrewForm";
 import { Chip } from "@/components/Chip";
+import { IdeaCard } from "@/components/IdeaCard";
 import { Mascot } from "@/components/Mascot";
+import { ResultPanel } from "@/components/ResultPanel";
 import { emojiFor } from "@/lib/emoji";
+import type { Idea } from "@/lib/types";
 
 // Same shape the /api/detect route returns.
 type DetectedObject = {
@@ -51,6 +55,33 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Brewing: what the user needs, their limits, and the ideas Muse Spark comes back with.
+  const [goal, setGoal] = useState("");
+  const [budget, setBudget] = useState(0);
+  const [time, setTime] = useState(10);
+  const [brewing, setBrewing] = useState(false);
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [chosen, setChosen] = useState<number | null>(null);
+
+  // Concept picture for the chosen idea (only made when the user taps "Show me!").
+  const [visualizing, setVisualizing] = useState(false);
+  const [conceptImage, setConceptImage] = useState<string | null>(null);
+  const [visualizeError, setVisualizeError] = useState<string | null>(null);
+  // The spot where the idea cards / result panel appear, so we can scroll back to it.
+  const ideasArea = useRef<HTMLDivElement>(null);
+
+  const chosenIdea = chosen !== null ? ideas[chosen] : null;
+
+  function clearResult() {
+    setConceptImage(null);
+    setVisualizeError(null);
+  }
+
+  // Wait one tick so React has swapped cards <-> result before scrolling.
+  function scrollToIdeasArea() {
+    setTimeout(() => ideasArea.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = ""; // allow picking the same file again
@@ -59,6 +90,9 @@ export default function Home() {
     setError(null);
     setObjects([]);
     setSelected([]);
+    setIdeas([]);
+    setChosen(null);
+    clearResult();
     setLoading(true);
 
     try {
@@ -87,11 +121,81 @@ export default function Home() {
     );
   }
 
+  async function brew() {
+    setError(null);
+    setIdeas([]);
+    setChosen(null);
+    clearResult();
+    setBrewing(true);
+
+    try {
+      const res = await fetch("/api/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredients: selected.map((i) => objects[i].name),
+          goal: goal.trim(),
+          budgetPhp: budget,
+          timeMinutes: time,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Brewing failed.");
+
+      setIdeas(data.ideas);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBrewing(false);
+    }
+  }
+
+  function chooseIdea(index: number) {
+    if (visualizing) return; // don't switch while a picture is being made for the current one
+    if (index !== chosen) clearResult();
+    setChosen(index);
+  }
+
+  async function visualize() {
+    if (!chosenIdea) return;
+    setVisualizeError(null);
+    setVisualizing(true);
+
+    try {
+      const res = await fetch("/api/visualize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: {
+            title: chosenIdea.title,
+            description: chosenIdea.description,
+            materialsUsed: chosenIdea.materialsUsed,
+          },
+          ingredients: selected.map((i) => objects[i].name),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't make the picture.");
+
+      setConceptImage(data.image);
+      scrollToIdeasArea();
+    } catch (err) {
+      setVisualizeError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setVisualizing(false);
+    }
+  }
+
+  function backToIdeas() {
+    setConceptImage(null); // the ideas and the chosen card stay as they were
+    scrollToIdeasArea();
+  }
+
   return (
     <div className="flex flex-1 justify-center">
       <main className="flex w-full max-w-2xl flex-col gap-7 px-4 py-8 sm:px-6 sm:py-12">
         <header className="flex flex-col items-center text-center">
-          <Mascot bubbling={loading} />
+          <Mascot bubbling={loading || brewing || visualizing} />
           <h1 className="mt-2 text-5xl font-bold tracking-tight">Alchemia</h1>
           <p className="sticker mt-3 -rotate-1 bg-sunny-soft px-4 py-1.5 text-lg font-medium">
             Turn what you have into what you need.
@@ -182,6 +286,79 @@ export default function Home() {
             </div>
           </section>
         )}
+
+        {selected.length > 0 && (
+          <BrewForm
+            goal={goal}
+            onGoalChange={setGoal}
+            budget={budget}
+            onBudgetChange={setBudget}
+            time={time}
+            onTimeChange={setTime}
+            brewing={brewing}
+            onBrew={brew}
+          />
+        )}
+
+        {brewing && (
+          <p className="text-center text-xl font-semibold">✨ Mixing up something clever…</p>
+        )}
+
+        <div ref={ideasArea} className="scroll-mt-6">
+          {/* Show the result panel in place of the cards once a concept picture exists. */}
+          {chosenIdea && photo && conceptImage ? (
+            <ResultPanel idea={chosenIdea} beforePhoto={photo} afterImage={conceptImage} onBack={backToIdeas} />
+          ) : (
+            ideas.length > 0 && (
+              <section className="flex flex-col gap-7">
+                <div>
+                  <h2 className="mb-1 text-2xl font-semibold">Your ideas are ready!</h2>
+                  <p className="text-base">Tap the one you want to make.</p>
+                </div>
+                {ideas.map((idea, i) => (
+                  <IdeaCard
+                    key={i}
+                    idea={idea}
+                    index={i}
+                    chosen={chosen === i}
+                    onChoose={() => chooseIdea(i)}
+                  />
+                ))}
+
+                {chosenIdea && (
+                  <button
+                    type="button"
+                    onClick={visualize}
+                    disabled={visualizing}
+                    className="sticker pressable min-h-14 bg-sunny px-6 py-3 text-xl font-bold disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    ✨ Show me!
+                  </button>
+                )}
+
+                {visualizing && (
+                  <p className="text-center text-xl font-semibold">🎨 Painting your idea…</p>
+                )}
+
+                {visualizeError && (
+                  <div role="alert" className="sticker flex flex-col gap-3 bg-pink-soft p-4 text-base">
+                    <p>
+                      <strong>Oops! </strong>
+                      {visualizeError}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={visualize}
+                      className="sticker pressable min-h-12 self-start bg-white px-5 py-2 font-semibold"
+                    >
+                      🔁 Try again
+                    </button>
+                  </div>
+                )}
+              </section>
+            )
+          )}
+        </div>
       </main>
     </div>
   );
