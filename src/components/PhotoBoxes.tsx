@@ -12,11 +12,12 @@ const COLORS = [
 
 type PhotoBoxesProps = {
   photo: string;
-  boxes: { box: PhotoBox; index: number }[]; // index = which detected object it belongs to
-  selected: number[];
-  onToggle: (index: number) => void;
+  // id = the ingredient the box belongs to; colorIndex picks its pastel color
+  boxes: { box: PhotoBox; id: string; colorIndex: number }[];
+  selected: string[]; // selected ingredient ids
+  onToggle: (id: string) => void;
   // Set when a chip is tapped, so its box does a little pop. `count` changes on every tap.
-  flash: { index: number; count: number } | null;
+  flash: { id: string; count: number } | null;
 };
 
 // The uploaded photo in its polaroid frame, with tappable boxes around the objects SAM found.
@@ -33,17 +34,17 @@ export function PhotoBoxes({ photo, boxes, selected, onToggle, flash }: PhotoBox
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photo} alt="Your uploaded photo" className="block max-h-80 max-w-full" />
 
-        {ordered.map(({ box, index }) => {
-          const color = COLORS[index % COLORS.length];
-          const isSelected = selected.includes(index);
+        {ordered.map(({ box, id, colorIndex }) => {
+          const color = COLORS[colorIndex % COLORS.length];
+          const isSelected = selected.includes(id);
           // A new key on every chip tap re-mounts the box, which replays the pop animation.
-          const flashCount = flash?.index === index ? flash.count : 0;
+          const flashCount = flash?.id === id ? flash.count : 0;
 
           return (
             <button
-              key={`${index}-${flashCount}`}
+              key={`${id}-${flashCount}`}
               type="button"
-              onClick={() => onToggle(index)}
+              onClick={() => onToggle(id)}
               aria-pressed={isSelected}
               aria-label={`${box.name}: ${isSelected ? "in the cauldron" : "tap to add"}`}
               style={{

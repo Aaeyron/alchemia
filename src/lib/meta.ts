@@ -90,6 +90,50 @@ export async function generateImage(prompt: string): Promise<string> {
   throw new Error("Muse Image returned an unexpected response shape.");
 }
 
+/**
+ * Turn the user's photo(s) into a new picture with Muse Image (POST /images/edits, JSON form).
+ * Several photos are allowed: the docs say input images are fused into a single scene.
+ * The model's own image search, web search and shell tools are turned off, so it works
+ * only from the photos and the prompt.
+ * Returns a data URL (default base64 response) or a temporary URL.
+ */
+export async function editImage(prompt: string, photoDataUrls: string[]): Promise<string> {
+  if (!API_KEY) {
+    throw new Error("MODEL_API_KEY is not set. Add it to .env.local and restart the dev server.");
+  }
+
+  const res = await fetch(`${BASE_URL}/images/edits`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: IMAGE_MODEL,
+      prompt,
+      images: photoDataUrls.map((url) => ({ image_url: url })),
+      n: 1,
+      tool_enablement: { enable_image_search: false, enable_web_search: false, enable_shell: false },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Muse Image edit failed (${res.status}): ${body}`);
+  }
+
+  // Same documented response shape as generations: { data: [{ b64_json } or { url }], output_format }
+  const data = await res.json();
+  const image = data?.data?.[0];
+  if (typeof image?.b64_json === "string") {
+    return `data:image/${data.output_format || "webp"};base64,${image.b64_json}`;
+  }
+  if (typeof image?.url === "string") {
+    return image.url;
+  }
+  throw new Error("Muse Image edit returned no picture.");
+}
+
 // One box SAM found, in source-image pixels (corners are inclusive), plus the image size.
 export type SamBox = {
   x1: number;

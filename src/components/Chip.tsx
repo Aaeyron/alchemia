@@ -8,10 +8,11 @@ type ChipProps = {
   selected: boolean;
   onToggle: () => void;
   title?: string;
+  badge?: string; // optional small extra emoji after the label, e.g. ✍️ for typed items
 };
 
 // A chunky, tappable ingredient chip. It does a little "pop" bounce when tapped.
-export function Chip({ emoji, label, selected, onToggle, title }: ChipProps) {
+export function Chip({ emoji, label, selected, onToggle, title, badge }: ChipProps) {
   const [popping, setPopping] = useState(false);
 
   function handleClick() {
@@ -34,6 +35,11 @@ export function Chip({ emoji, label, selected, onToggle, title }: ChipProps) {
         {emoji}
       </span>
       {label}
+      {badge && (
+        <span aria-hidden="true" className="text-sm">
+          {badge}
+        </span>
+      )}
       {selected && <span aria-hidden="true">✓</span>}
     </button>
   );
