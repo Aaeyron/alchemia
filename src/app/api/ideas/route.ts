@@ -1,10 +1,17 @@
-import { askForIdeas, readIdeaRequest, type IdeaRequest } from "@/lib/ideaRules";
+import {
+  COLOR_RULE,
+  askForIdeas,
+  listIngredients,
+  readColors,
+  readIdeaRequest,
+  type IdeaRequest,
+} from "@/lib/ideaRules";
 
-function buildPrompt({ ingredients, goal, budgetPhp, timeMinutes }: IdeaRequest): string {
+function buildPrompt({ ingredients, goal, budgetPhp, timeMinutes }: IdeaRequest, colors: Record<string, string>): string {
   return `You are Alchemia, a friendly invention helper for students.
 
 Goal: ${goal}
-Ingredients (the ONLY materials available): ${ingredients.join(", ")}
+Ingredients (the ONLY materials available; colors in brackets): ${listIngredients(ingredients, colors)}
 Budget: ₱${budgetPhp}
 Time limit: ${timeMinutes} minutes
 
@@ -12,8 +19,10 @@ Invent exactly 3 different things the student can make to reach the goal.
 Rules:
 - Use ONLY the listed ingredients. No other materials. Do not assume tools like scissors,
   tape or glue unless they are in the list.
-- In materialsUsed, write each ingredient name exactly as it appears in the list.
+- In materialsUsed, write each ingredient name exactly as it appears in the list
+  (without the color in brackets).
 - costPhp must be at most ${budgetPhp}. timeMinutes must be at most ${timeMinutes}.
+${COLOR_RULE}
 - Write in simple, friendly English a student can follow.
 - safetyNote: if the idea involves sharp tools, heat, electricity or chemicals, give a
   short safety tip. Otherwise write "Looks safe!".
@@ -24,11 +33,14 @@ Return JSON only — no explanation, no markdown — as an array of exactly 3 ob
   "safetyNote": "...", "buildSteps": ["step 1", "step 2"]}]`;
 }
 
-// POST /api/ideas — body: { ingredients, goal, budgetPhp, timeMinutes }
+// POST /api/ideas — body: { ingredients, goal, budgetPhp, timeMinutes, colors? }
 export async function POST(request: Request) {
   let req: IdeaRequest | null;
+  let colors: Record<string, string> = {};
   try {
-    req = readIdeaRequest(await request.json());
+    const body = await request.json();
+    req = readIdeaRequest(body);
+    colors = readColors(body);
   } catch {
     req = null; // body wasn't valid JSON
   }
@@ -41,7 +53,7 @@ export async function POST(request: Request) {
 
   try {
     // Checks each idea in code and retries once if any rule was broken (see ideaRules.ts).
-    const ideas = await askForIdeas(buildPrompt(req), req, 3);
+    const ideas = await askForIdeas(buildPrompt(req, colors), req, 3);
     return Response.json({ ideas });
   } catch (err) {
     console.error("ideas failed:", err);

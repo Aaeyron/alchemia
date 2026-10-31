@@ -18,7 +18,7 @@ export function IngredientChip({ ingredient, selected, onToggle, onRemove }: Ing
         label={ingredient.name}
         selected={selected}
         onToggle={onToggle}
-        title={ingredient.detail}
+        title={[ingredient.color, ingredient.material].filter(Boolean).join(" · ") || undefined}
         badge={ingredient.source === "typed" ? "✍️" : undefined}
       />
       {/* The ✕ looks small, but the invisible ::after area makes it a 44px tap target. */}

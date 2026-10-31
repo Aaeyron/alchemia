@@ -1,4 +1,13 @@
-import { askForIdeas, isIngredient, isStringList, readIdeaRequest, type IdeaRequest } from "@/lib/ideaRules";
+import {
+  COLOR_RULE,
+  askForIdeas,
+  isIngredient,
+  isStringList,
+  listIngredients,
+  readColors,
+  readIdeaRequest,
+  type IdeaRequest,
+} from "@/lib/ideaRules";
 
 type Tweak = "missing" | "weird" | "easier";
 const TWEAKS: Tweak[] = ["missing", "weird", "easier"];
@@ -14,7 +23,12 @@ type CurrentIdea = {
   buildSteps: string[];
 };
 
-type TweakRequest = IdeaRequest & { idea: CurrentIdea; tweak: Tweak; missing: string[] };
+type TweakRequest = IdeaRequest & {
+  idea: CurrentIdea;
+  tweak: Tweak;
+  missing: string[];
+  colors: Record<string, string>; // optional colors per ingredient name, for the prompt
+};
 
 // Check the request body. Returns null if anything is missing or the wrong type.
 function readTweakRequest(body: unknown): TweakRequest | null {
@@ -53,6 +67,7 @@ function readTweakRequest(body: unknown): TweakRequest | null {
     },
     tweak: tweak as Tweak,
     missing: tweak === "missing" ? (missing as string[]) : [],
+    colors: readColors(body),
   };
 }
 
@@ -78,7 +93,7 @@ function buildPrompt(req: TweakRequest): string {
   return `You are Alchemia, a friendly invention helper for students.
 
 Goal: ${req.goal}
-Ingredients (the ONLY materials available): ${req.ingredients.join(", ")}
+Ingredients (the ONLY materials available; colors in brackets): ${listIngredients(req.ingredients, req.colors)}
 Budget: ₱${req.budgetPhp}
 Time limit: ${req.timeMinutes} minutes
 
@@ -90,8 +105,10 @@ ${tweakInstruction(req)}
 Rules:
 - Use ONLY the listed ingredients. No other materials. Do not assume tools like scissors,
   tape or glue unless they are in the list.
-- In materialsUsed, write each ingredient name exactly as it appears in the list.
+- In materialsUsed, write each ingredient name exactly as it appears in the list
+  (without the color in brackets).
 - costPhp must be at most ${req.budgetPhp}. timeMinutes must be at most ${req.timeMinutes}.
+${COLOR_RULE}
 - Write in simple, friendly English a student can follow.
 - safetyNote: if the idea involves sharp tools, heat, electricity or chemicals, give a
   short safety tip. Otherwise write "Looks safe!".
@@ -102,7 +119,7 @@ Return JSON only — no explanation, no markdown — as an array with exactly 1 
   "safetyNote": "...", "buildSteps": ["step 1", "step 2"]}]`;
 }
 
-// POST /api/tweak — body: { idea, ingredients, goal, budgetPhp, timeMinutes, tweak, missing? }
+// POST /api/tweak — body: { idea, ingredients, goal, budgetPhp, timeMinutes, tweak, missing?, colors? }
 export async function POST(request: Request) {
   let req: TweakRequest | null;
   try {

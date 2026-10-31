@@ -15,7 +15,10 @@ import { emojiFor } from "@/lib/emoji";
 import {
   MAX_INGREDIENTS,
   MAX_NAME_LENGTH,
+  colorFromName,
+  describeMaterials,
   findByName,
+  matchIngredient,
   mergeIngredients,
   newId,
   sameName,
@@ -35,6 +38,7 @@ type BrewRequest = {
   goal: string;
   budgetPhp: number;
   timeMinutes: number;
+  colors: Record<string, string>; // known color per ingredient name, for the idea prompts
 };
 
 // One saved version of the result, for "Back to previous version".
@@ -194,7 +198,7 @@ export default function Home() {
       setIngredients((current) =>
         mergeIngredients(
           current,
-          found.map((obj) => ({ name: obj.name, detail: `${obj.color} · ${obj.material}` })),
+          found.map((obj) => ({ name: obj.name, color: obj.color, material: obj.material })),
           "photo",
           photoId
         )
@@ -246,7 +250,8 @@ export default function Home() {
   function addTyped(rawName: string) {
     const name = rawName.trim().slice(0, MAX_NAME_LENGTH);
     if (name === "") return;
-    const next = mergeIngredients(ingredients, [{ name }], "typed");
+    // Typed items only get a color if the name says one, e.g. "red tape".
+    const next = mergeIngredients(ingredients, [{ name, color: colorFromName(name) }], "typed");
     const added = findByName(next, name);
     setIngredients(next);
     if (added && !selected.includes(added.id)) setSelected([...selected, added.id]);
@@ -270,11 +275,17 @@ export default function Home() {
     clearResult();
     setBrewing(true);
 
+    const colors: Record<string, string> = {};
+    for (const ingredient of selectedIngredients) {
+      if (ingredient.color) colors[ingredient.name] = ingredient.color;
+    }
+
     const request: BrewRequest = {
       ingredients: selectedIngredients.map((ingredient) => ingredient.name),
       goal: goal.trim(),
       budgetPhp: budget,
       timeMinutes: time,
+      colors,
     };
 
     try {
@@ -329,6 +340,7 @@ export default function Home() {
           ingredients: currentIngredients,
           photos: photos.slice(0, MAX_PHOTOS).map((photo) => photo.dataUrl),
           typedOnly,
+          materials: describeMaterials(ingredients, idea.materialsUsed),
         }),
       });
       const data = await res.json();
@@ -367,6 +379,7 @@ export default function Home() {
           timeMinutes: brewedWith.timeMinutes,
           tweak: kind,
           missing,
+          colors: brewedWith.colors,
         }),
       });
       const data = await res.json();
@@ -406,7 +419,14 @@ export default function Home() {
     scrollToIdeasArea();
   }
 
-  const beforePhoto = photos[0]?.dataUrl ?? null;
+  // For the result panel: the shown idea's materials (with colors), and photo items it doesn't use.
+  const shownMaterials = shownIdea ? describeMaterials(ingredients, shownIdea.materialsUsed) : [];
+  const usedIds = new Set(
+    (shownIdea?.materialsUsed ?? []).map((name) => matchIngredient(ingredients, name)?.id)
+  );
+  const notUsed = ingredients
+    .filter((ingredient) => ingredient.source === "photo" && !usedIds.has(ingredient.id))
+    .map((ingredient) => ingredient.name);
 
   return (
     <div className="flex flex-1 justify-center">
@@ -548,9 +568,16 @@ export default function Home() {
 
         <div ref={ideasArea} className="flex scroll-mt-6 flex-col gap-7">
           {/* Show the result panel (and tweaks) in place of the cards once a concept picture exists. */}
-          {shownIdea && beforePhoto && conceptImage ? (
+          {shownIdea && photos.length > 0 && conceptImage ? (
             <>
-              <ResultPanel idea={shownIdea} beforePhoto={beforePhoto} afterImage={conceptImage} onBack={backToIdeas} />
+              <ResultPanel
+                idea={shownIdea}
+                beforePhotos={photos.map((photo) => photo.dataUrl)}
+                materials={shownMaterials}
+                notUsed={notUsed}
+                afterImage={conceptImage}
+                onBack={backToIdeas}
+              />
               <TweakPanel
                 materials={shownIdea.materialsUsed}
                 busy={tweaking || visualizing}

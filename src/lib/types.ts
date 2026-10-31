@@ -6,7 +6,16 @@ export type Ingredient = {
   name: string;
   source: "photo" | "typed";
   photoId?: string; // which photo it was first seen in
-  detail?: string; // e.g. "blue · plastic" (from detection), shown as a tooltip
+  color?: string; // e.g. "blue" (from detection, or a color word in a typed name)
+  material?: string; // e.g. "plastic" (from detection)
+};
+
+// One material an idea uses, with what we know about it (sent to /api/visualize).
+export type MaterialInfo = {
+  name: string;
+  color?: string;
+  material?: string;
+  source: "photo" | "typed";
 };
 
 // One uploaded photo (already downscaled) and the boxes SAM found in it.

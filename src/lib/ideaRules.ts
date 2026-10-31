@@ -37,6 +37,36 @@ export function readIdeaRequest(body: unknown): IdeaRequest | null {
   return { ingredients, goal: goal.trim(), budgetPhp, timeMinutes };
 }
 
+// ---------- Prompt helpers (colors) ----------
+
+// Rule added to the idea prompts so ideas keep the materials' real colors.
+export const COLOR_RULE = `- Materials keep their own colors. Do not suggest painting, coloring, dyeing or decorating
+  anything unless a paint, marker or similar item is in the ingredient list. When you describe
+  the finished project, use the materials' real colors.`;
+
+// Optional { "plastic bottle": "blue", ... } sent alongside the ingredients. Bad input is ignored.
+export function readColors(body: unknown): Record<string, string> {
+  const colors = (body as Record<string, unknown> | null)?.colors;
+  if (typeof colors !== "object" || colors === null) return {};
+  const clean: Record<string, string> = {};
+  for (const [name, color] of Object.entries(colors).slice(0, 30)) {
+    if (typeof color === "string" && color.trim() !== "" && color.length <= 40) {
+      clean[name.toLowerCase().trim()] = color.trim();
+    }
+  }
+  return clean;
+}
+
+// "plastic bottle (blue), cardboard (brown), tape" — colors where known.
+export function listIngredients(ingredients: string[], colors: Record<string, string>): string {
+  return ingredients
+    .map((name) => {
+      const color = colors[name.toLowerCase().trim()];
+      return color ? `${name} (${color})` : name;
+    })
+    .join(", ");
+}
+
 // Turn whatever the model sent into a clean list of at most `count` ideas
 // (missing fields get safe defaults; a single object is treated as a list of one).
 export function cleanIdeas(reply: string, count: number): RawIdea[] {
