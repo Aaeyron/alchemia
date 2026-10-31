@@ -8,6 +8,7 @@ const BASE_URL = process.env.MODEL_API_BASE_URL || "https://api.meta.ai/v1";
 const MODEL = process.env.MODEL_API_MODEL || "muse-spark-1.3";
 const IMAGE_MODEL = process.env.MODEL_API_IMAGE_MODEL || "muse-image-1.0";
 const SAM_MODEL = process.env.MODEL_API_SAM_MODEL || "sam-3.1";
+const VOICE_MODEL = process.env.MODEL_API_VOICE_MODEL || "muse-voice-transcribe-1.0";
 
 // One piece of a chat message: either text or an image (OpenAI-compatible format).
 type ContentPart =
@@ -132,6 +133,47 @@ export async function editImage(prompt: string, photoDataUrls: string[]): Promis
     return image.url;
   }
   throw new Error("Muse Image edit returned no picture.");
+}
+
+/**
+ * Turn a short WAV clip into text with Muse Voice Transcribe (POST /asr/transcribe).
+ * The documented request is multipart: a JSON "request" part with the settings and an
+ * "audio" part with the clip (WAV only: mono 16-bit PCM at 16 or 24 kHz).
+ * `keywords` biases recognition toward words like ingredient names.
+ */
+export async function transcribeAudio(wav: Blob, keywords: string[]): Promise<string> {
+  if (!API_KEY) {
+    throw new Error("MODEL_API_KEY is not set. Add it to .env.local and restart the dev server.");
+  }
+
+  const settings = {
+    model: VOICE_MODEL,
+    audioEncoding: "WAV",
+    keywords,
+    languageBias: ["English", "Tagalog"], // a hint only; other languages are still detected
+  };
+  const form = new FormData();
+  form.append("request", new Blob([JSON.stringify(settings)], { type: "application/json" }));
+  form.append("audio", wav, "voice.wav");
+
+  // No Content-Type header here: fetch sets multipart/form-data with the right boundary.
+  const res = await fetch(`${BASE_URL}/asr/transcribe`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${API_KEY}`, Accept: "application/json" },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Muse Voice Transcribe failed (${res.status}): ${body}`);
+  }
+
+  // Documented response: { sessionId, transcript, audioDurationMs, turns }
+  const data = await res.json();
+  if (typeof data?.transcript !== "string") {
+    throw new Error("Muse Voice Transcribe returned an unexpected response shape.");
+  }
+  return data.transcript.trim();
 }
 
 // One box SAM found, in source-image pixels (corners are inclusive), plus the image size.

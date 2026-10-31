@@ -1,5 +1,14 @@
 // Types shared by the API routes and the page (safe to import in client code).
 
+// What the user asked for by voice (from /api/voice-intent, already cleaned up).
+export type VoiceIntent = {
+  intent: "set_goal" | "add_items" | "missing" | "weird" | "easier" | "none";
+  goal?: string;
+  items?: string[];
+  budgetPhp?: number; // snapped to 0 / 50 / 100 / 500
+  timeMinutes?: number; // snapped to 5 / 10 / 30 / 60
+};
+
 // One item in the shared ingredient list: seen in a photo, or typed in by the user.
 export type Ingredient = {
   id: string;

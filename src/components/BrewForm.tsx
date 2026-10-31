@@ -14,6 +14,7 @@ type BrewFormProps = {
   onTimeChange: (time: number) => void;
   brewing: boolean;
   onBrew: () => void;
+  voice?: React.ReactNode; // optional mic button, shown under the goal input
 };
 
 // Goal, budget and time inputs, plus the big "Brew possibilities" button.
@@ -26,6 +27,7 @@ export function BrewForm({
   onTimeChange,
   brewing,
   onBrew,
+  voice,
 }: BrewFormProps) {
   const canBrew = goal.trim() !== "" && !brewing;
 
@@ -48,6 +50,8 @@ export function BrewForm({
           className="sticker min-h-12 rounded-2xl bg-white px-4 py-3 text-lg placeholder:text-ink/60 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-sky"
         />
       </label>
+
+      {voice}
 
       <fieldset>
         <legend className="mb-2 text-lg font-semibold">How much can you spend?</legend>

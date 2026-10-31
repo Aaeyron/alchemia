@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { AddIngredientForm } from "@/components/AddIngredientForm";
 import { BrewForm } from "@/components/BrewForm";
+import { BrewProgress } from "@/components/BrewProgress";
 import { ErrorBox } from "@/components/ErrorBox";
 import { IdeaCard } from "@/components/IdeaCard";
 import { IngredientChip } from "@/components/IngredientChip";
@@ -11,6 +12,7 @@ import { PhotoBoxes } from "@/components/PhotoBoxes";
 import { PhotoStrip } from "@/components/PhotoStrip";
 import { ResultPanel } from "@/components/ResultPanel";
 import { TweakPanel, type TweakKind } from "@/components/TweakPanel";
+import { VoiceButton } from "@/components/VoiceButton";
 import { emojiFor } from "@/lib/emoji";
 import {
   MAX_INGREDIENTS,
@@ -23,7 +25,7 @@ import {
   newId,
   sameName,
 } from "@/lib/ingredients";
-import type { Idea, Ingredient, PhotoBox, UploadedPhoto } from "@/lib/types";
+import type { Idea, Ingredient, PhotoBox, UploadedPhoto, VoiceIntent } from "@/lib/types";
 
 // Same shape the /api/detect route returns.
 type DetectedObject = {
@@ -119,6 +121,9 @@ export default function Home() {
   const [tweaking, setTweaking] = useState(false);
   const [tweakError, setTweakError] = useState<string | null>(null);
   const [lastTweak, setLastTweak] = useState<{ kind: TweakKind; missing?: string[] } | null>(null);
+
+  // True while a voice recording / transcription / voice command is running.
+  const [voiceActive, setVoiceActive] = useState(false);
 
   // The spot where the idea cards / result panel appear, so we can scroll back to it.
   const ideasArea = useRef<HTMLDivElement>(null);
@@ -246,15 +251,27 @@ export default function Home() {
     setFlash((current) => ({ id, count: (current?.count ?? 0) + 1 }));
   }
 
-  // Typed ingredient: merged into the list (no duplicates) and put straight in the cauldron.
-  function addTyped(rawName: string) {
-    const name = rawName.trim().slice(0, MAX_NAME_LENGTH);
-    if (name === "") return;
+  // Typed ingredients: merged into the list (no duplicates) and put straight in the cauldron.
+  // Returns the names that are now in the list (some may be dropped if it's full).
+  function addTypedItems(rawNames: string[]): string[] {
+    const names = rawNames.map((name) => name.trim().slice(0, MAX_NAME_LENGTH)).filter((name) => name !== "");
+    if (names.length === 0) return [];
     // Typed items only get a color if the name says one, e.g. "red tape".
-    const next = mergeIngredients(ingredients, [{ name, color: colorFromName(name) }], "typed");
-    const added = findByName(next, name);
+    const next = mergeIngredients(
+      ingredients,
+      names.map((name) => ({ name, color: colorFromName(name) })),
+      "typed"
+    );
+    const added = names
+      .map((name) => findByName(next, name))
+      .filter((ingredient): ingredient is Ingredient => ingredient !== undefined);
     setIngredients(next);
-    if (added && !selected.includes(added.id)) setSelected([...selected, added.id]);
+    setSelected([...selected, ...added.map((ingredient) => ingredient.id).filter((id) => !selected.includes(id))]);
+    return added.map((ingredient) => ingredient.name);
+  }
+
+  function addTyped(name: string) {
+    addTypedItems([name]);
   }
 
   function removeIngredient(id: string) {
@@ -419,6 +436,61 @@ export default function Home() {
     scrollToIdeasArea();
   }
 
+  // Voice: ask /api/voice-intent what the user meant, then do the same thing the buttons do.
+  // Returns a short friendly reply for the mic button to show.
+  async function handleVoiceText(text: string): Promise<string> {
+    const res = await fetch("/api/voice-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        ingredients: ingredients.map((ingredient) => ingredient.name),
+        goalSet: goal.trim() !== "",
+        ideaMaterials: shownIdea?.materialsUsed ?? [],
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Couldn't understand that.");
+    const command: VoiceIntent = data;
+
+    switch (command.intent) {
+      case "set_goal": {
+        setGoal(command.goal ?? "");
+        if (command.budgetPhp !== undefined) setBudget(command.budgetPhp);
+        if (command.timeMinutes !== undefined) setTime(command.timeMinutes);
+        return `Got it! Goal: “${command.goal}”. Press Brew when you're ready.`;
+      }
+      case "add_items": {
+        const added = addTypedItems(command.items ?? []);
+        return added.length > 0 ? `Added ${added.join(", ")} to your cauldron!` : "Your cauldron is full!";
+      }
+      case "missing":
+      case "weird":
+      case "easier": {
+        if (!shownIdea || !brewedWith) return "Pick an idea first, then ask me to change it!";
+        tweak(command.intent, command.intent === "missing" ? command.items : undefined);
+        if (command.intent === "missing") return `OK, redesigning without ${command.items?.join(", ")}…`;
+        return command.intent === "weird" ? "Making it weird…" : "Making it easier…";
+      }
+      default:
+        return "I didn't catch that, try again!";
+    }
+  }
+
+  // Can't start a recording while anything else is running.
+  const busy = loading || brewing || visualizing || tweaking;
+  const voiceButton = (
+    <VoiceButton
+      disabled={busy || voiceActive}
+      keywords={ingredients.map((ingredient) => ingredient.name)}
+      onActiveChange={setVoiceActive}
+      onText={handleVoiceText}
+    />
+  );
+
+  // The result panel replaces the idea cards once a concept picture exists.
+  const resultShown = Boolean(shownIdea && photos.length > 0 && conceptImage);
+
   // For the result panel: the shown idea's materials (with colors), and photo items it doesn't use.
   const shownMaterials = shownIdea ? describeMaterials(ingredients, shownIdea.materialsUsed) : [];
   const usedIds = new Set(
@@ -432,7 +504,7 @@ export default function Home() {
     <div className="flex flex-1 justify-center">
       <main className="flex w-full max-w-2xl flex-col gap-7 px-4 py-8 sm:px-6 sm:py-12">
         <header className="flex flex-col items-center text-center">
-          <Mascot bubbling={loading || brewing || visualizing || tweaking} />
+          <Mascot bubbling={loading || segmenting > 0 || brewing || visualizing || tweaking || voiceActive} />
           <h1 className="mt-2 text-5xl font-bold tracking-tight">Alchemia</h1>
           <p className="sticker mt-3 -rotate-1 bg-sunny-soft px-4 py-1.5 text-lg font-medium">
             Turn what you have into what you need.
@@ -485,12 +557,12 @@ export default function Home() {
         )}
 
         {segmenting > 0 && (
-          <p className="text-center text-base font-medium">🔎 Finding the edges…</p>
+          <div className="flex justify-center">
+            <BrewProgress kind="segment" compact />
+          </div>
         )}
 
-        {loading && (
-          <p className="text-center text-xl font-semibold">🫧 Bubbling up ideas…</p>
-        )}
+        {loading && <BrewProgress kind="detect" photo={activePhoto?.dataUrl} />}
 
         {error && (
           <p role="alert" className="sticker bg-pink-soft p-4 text-base">
@@ -559,16 +631,21 @@ export default function Home() {
             onTimeChange={setTime}
             brewing={brewing}
             onBrew={brew}
+            voice={voiceButton}
           />
         )}
 
-        {brewing && (
-          <p className="text-center text-xl font-semibold">✨ Mixing up something clever…</p>
-        )}
-
         <div ref={ideasArea} className="flex scroll-mt-6 flex-col gap-7">
+          {/* The bubbling cauldron, right where the 3 idea cards will appear. */}
+          {brewing && (
+            <BrewProgress
+              kind="brew"
+              emojis={selectedIngredients.map((ingredient) => emojiFor(ingredient.name))}
+            />
+          )}
+
           {/* Show the result panel (and tweaks) in place of the cards once a concept picture exists. */}
-          {shownIdea && photos.length > 0 && conceptImage ? (
+          {resultShown && shownIdea && conceptImage ? (
             <>
               <ResultPanel
                 idea={shownIdea}
@@ -576,6 +653,7 @@ export default function Home() {
                 materials={shownMaterials}
                 notUsed={notUsed}
                 afterImage={conceptImage}
+                painting={visualizing}
                 onBack={backToIdeas}
               />
               <TweakPanel
@@ -587,6 +665,7 @@ export default function Home() {
                 onBackToPrevious={backToPrevious}
                 error={tweakError}
                 onRetry={() => lastTweak && tweak(lastTweak.kind, lastTweak.missing)}
+                voice={voiceButton}
               />
             </>
           ) : (
@@ -596,14 +675,11 @@ export default function Home() {
                   <h2 className="mb-1 text-2xl font-semibold">Your ideas are ready!</h2>
                   <p className="text-base">Tap the one you want to make.</p>
                 </div>
+                {/* The cards pop in one after another (100 ms apart). */}
                 {ideas.map((idea, i) => (
-                  <IdeaCard
-                    key={i}
-                    idea={idea}
-                    index={i}
-                    chosen={chosen === i}
-                    onChoose={() => chooseIdea(i)}
-                  />
+                  <div key={i} className="pop-in" style={{ animationDelay: `${i * 100}ms` }}>
+                    <IdeaCard idea={idea} index={i} chosen={chosen === i} onChoose={() => chooseIdea(i)} />
+                  </div>
                 ))}
 
                 {chosenIdea && (
@@ -620,10 +696,9 @@ export default function Home() {
             )
           )}
 
-          {/* Picture progress and errors: under the cards, or under the result after a tweak. */}
-          {visualizing && (
-            <p className="text-center text-xl font-semibold">🎨 Painting your idea…</p>
-          )}
+          {/* First picture: the painting animation appears under the cards.
+              (Later pictures show their progress inside the result panel's AFTER frame.) */}
+          {visualizing && !resultShown && <BrewProgress kind="paint" />}
 
           {visualizeError && <ErrorBox message={visualizeError} onRetry={() => visualize()} />}
         </div>

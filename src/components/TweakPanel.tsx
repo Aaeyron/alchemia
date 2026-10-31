@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BrewProgress } from "@/components/BrewProgress";
 import { Chip } from "@/components/Chip";
 import { ErrorBox } from "@/components/ErrorBox";
 import { emojiFor } from "@/lib/emoji";
@@ -16,6 +17,7 @@ type TweakPanelProps = {
   onBackToPrevious: () => void;
   error: string | null;
   onRetry: () => void;
+  voice?: React.ReactNode; // optional mic button, shown under the tweak buttons
 };
 
 const buttonClass =
@@ -31,6 +33,7 @@ export function TweakPanel({
   onBackToPrevious,
   error,
   onRetry,
+  voice,
 }: TweakPanelProps) {
   const [pickingMissing, setPickingMissing] = useState(false);
   const [missing, setMissing] = useState<string[]>([]);
@@ -72,6 +75,8 @@ export function TweakPanel({
         </button>
       </div>
 
+      {voice}
+
       {pickingMissing && (
         <div className="flex flex-col gap-3">
           <p className="text-base font-medium">Tap the things you don&apos;t have:</p>
@@ -97,7 +102,7 @@ export function TweakPanel({
         </div>
       )}
 
-      {tweaking && <p className="text-center text-xl font-semibold">🔧 Tweaking your idea…</p>}
+      {tweaking && <BrewProgress kind="tweak" />}
 
       {error && <ErrorBox message={error} onRetry={onRetry} />}
 

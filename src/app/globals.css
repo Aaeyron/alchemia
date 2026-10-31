@@ -160,6 +160,124 @@ body {
   animation: pop 350ms ease-out;
 }
 
+/* ---------- Work-in-progress animations (BrewProgress.tsx) ----------
+   Every animated piece also has the class "wip", so reduced motion can switch them all off.
+   The base styles (without animation) are a nice still frame, so nothing disappears. */
+
+/* A result arriving: fade in and grow slightly. */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.pop-in {
+  animation: pop-in 250ms ease-out both; /* "both" keeps it hidden during a stagger delay */
+}
+
+/* A new rotating message fades in. */
+@keyframes wip-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.wip-message {
+  animation: wip-fade 300ms ease-out;
+}
+
+/* Brew: bubbles rise out of the cauldron. */
+@keyframes wip-rise {
+  0% { transform: translateY(10px) scale(0.6); opacity: 0; }
+  20% { opacity: 0.9; }
+  100% { transform: translateY(-90px) scale(1); opacity: 0; }
+}
+.wip-rise {
+  transform: translateY(-40px);
+  opacity: 0.9;
+  animation: wip-rise 2s ease-out infinite; /* duration + delay set per bubble */
+}
+
+/* Brew: an ingredient hops in an arc from the side and drops into the pot.
+   --from-x (set per emoji) is where it starts, left or right of the pot. */
+@keyframes wip-hop {
+  0% { transform: translate(var(--from-x), -10px) scale(1); opacity: 0; }
+  15% { opacity: 1; }
+  50% { transform: translate(calc(var(--from-x) / 2), -70px) scale(1); }
+  85% { transform: translate(0, 0) scale(0.7); opacity: 1; }
+  100% { transform: translate(0, 14px) scale(0.4); opacity: 0; }
+}
+.wip-hop {
+  transform: translate(calc(var(--from-x) / 2), -60px);
+  animation: wip-hop 2.4s ease-in-out infinite; /* delay set per emoji */
+}
+
+/* Paint: the brush sweeps across the frame; colored dabs fade in and out. */
+@keyframes wip-sweep {
+  0%, 100% { transform: translate(0, 0) rotate(-20deg); }
+  50% { transform: translate(110px, 90px) rotate(15deg); }
+}
+.wip-sweep {
+  transform: translate(50px, 40px) rotate(-10deg);
+  animation: wip-sweep 2.6s ease-in-out infinite;
+}
+@keyframes wip-dab {
+  0%, 100% { opacity: 0; transform: scale(0.6); }
+  40%, 60% { opacity: 0.9; transform: scale(1); }
+}
+.wip-dab {
+  opacity: 0.8;
+  animation: wip-dab 2.8s ease-in-out infinite; /* delay set per dab */
+}
+
+/* Tweak: the wand waves; sparkles circle the card. Compact icons wiggle the same way. */
+@keyframes wip-wave {
+  0%, 100% { transform: rotate(-15deg); }
+  50% { transform: rotate(20deg); }
+}
+.wip-wave {
+  animation: wip-wave 1s ease-in-out infinite;
+}
+@keyframes wip-spin {
+  to { transform: rotate(360deg); }
+}
+.wip-spin {
+  animation: wip-spin 5s linear infinite;
+}
+
+/* Detect / segment: a soft scanning line and a gliding magnifying glass. */
+@keyframes wip-scan {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(104px); }
+}
+.wip-scan {
+  transform: translateY(52px);
+  animation: wip-scan 2.4s ease-in-out infinite;
+}
+@keyframes wip-glide {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(110px, 10px); }
+  50% { transform: translate(60px, 70px); }
+  75% { transform: translate(120px, 75px); }
+}
+.wip-glide {
+  transform: translate(60px, 35px);
+  animation: wip-glide 4s ease-in-out infinite;
+}
+
+/* Voice: bouncing dots and a little sound wave. */
+@keyframes wip-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+  40% { transform: translateY(-6px); opacity: 1; }
+}
+.wip-dot {
+  animation: wip-dot 1.2s ease-in-out infinite; /* delay set per dot */
+}
+@keyframes wip-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.wip-bar {
+  transform: scaleY(0.7);
+  animation: wip-bar 0.9s ease-in-out infinite; /* delay set per bar */
+}
+
 /* Users who ask for less motion get a calm, still UI.
    Bubbles and sparkles stay visible at their resting spots, just not moving. */
 @media (prefers-reduced-motion: reduce) {
@@ -168,8 +286,14 @@ body {
   .mascot-eyes,
   .mascot-bobbing,
   .mascot-bobbing .mascot-bubble,
-  .pop {
+  .pop,
+  .pop-in,
+  .wip-message {
     animation: none;
+  }
+  /* Work-in-progress visuals freeze on their still frame. */
+  .wip {
+    animation: none !important;
   }
   .pressable,
   .pressable:hover,
