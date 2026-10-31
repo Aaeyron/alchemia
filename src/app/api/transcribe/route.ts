@@ -1,4 +1,8 @@
 import { transcribeAudio } from "@/lib/meta";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+// Vercel Hobby allows up to 300 s per function (the plan's maximum).
+export const maxDuration = 300;
 
 // Our clips are at most 15 seconds of 16 kHz mono 16-bit WAV (about 0.5 MB), so 3 MB is plenty.
 // (Meta's own limit is 32 MB / 10 minutes.)
@@ -33,6 +37,9 @@ function readKeywords(value: FormDataEntryValue | null): string[] {
 
 // POST /api/transcribe — multipart form: "audio" (a WAV file) and optional "keywords" (JSON array)
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, "transcribe");
+  if (limited) return limited;
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -58,8 +65,11 @@ export async function POST(request: Request) {
     const text = await transcribeAudio(wav, keywords);
     return Response.json({ text });
   } catch (err) {
+    // Details stay in the server log; the visitor gets a friendly message.
     console.error("transcribe failed:", err);
-    const message = err instanceof Error ? err.message : "Something went wrong.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: "Alchemia couldn't hear that clearly. Please try again." },
+      { status: 500 }
+    );
   }
 }

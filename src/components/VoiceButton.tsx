@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BrewProgress } from "@/components/BrewProgress";
+import { FriendlyError, sendToApi } from "@/lib/api";
 import { recordingToWav } from "@/lib/wav";
 
 const MAX_SECONDS = 15;
@@ -102,11 +103,7 @@ export function VoiceButton({ disabled, keywords, onActiveChange, onText }: Voic
       const form = new FormData();
       form.append("audio", wav, "voice.wav");
       form.append("keywords", JSON.stringify(latest.current.keywords));
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't write that down.");
-
-      const text: string = data.text;
+      const { text } = await sendToApi<{ text: string }>("/api/transcribe", form);
       if (text === "") return finish(null, "I didn't hear anything. Try again, a little louder?");
 
       setPhase("thinking");
@@ -114,7 +111,14 @@ export function VoiceButton({ disabled, keywords, onActiveChange, onText }: Voic
       finish(text, await latest.current.onText(text));
     } catch (err) {
       console.error("voice failed:", err);
-      finish(null, "Oops! Something went wrong with the microphone. Try again, or just type.");
+      // Server and network problems come with a friendly message (e.g. the hourly limit);
+      // anything else is most likely the microphone or the audio conversion.
+      finish(
+        null,
+        err instanceof FriendlyError
+          ? `Oops! ${err.message}`
+          : "Oops! Something went wrong with the microphone. Try again, or just type."
+      );
     }
   }
 

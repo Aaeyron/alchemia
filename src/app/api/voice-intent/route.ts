@@ -1,5 +1,9 @@
 import { askSpark, parseJson } from "@/lib/meta";
+import { checkRateLimit } from "@/lib/rateLimit";
 import type { VoiceIntent } from "@/lib/types";
+
+// Vercel Hobby allows up to 300 s per function (the plan's maximum).
+export const maxDuration = 300;
 
 type Intent = VoiceIntent["intent"];
 const INTENTS: Intent[] = ["set_goal", "add_items", "missing", "weird", "easier", "none"];
@@ -131,6 +135,9 @@ function cleanIntent(raw: Partial<Record<keyof VoiceIntent, unknown>>, req: Voic
 
 // POST /api/voice-intent — body: { text, ingredients, goalSet, ideaMaterials? }
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, "voice-intent");
+  if (limited) return limited;
+
   let req: VoiceRequest | null;
   try {
     req = readRequest(await request.json());
@@ -149,8 +156,11 @@ export async function POST(request: Request) {
     const command = cleanIntent(typeof raw === "object" && raw !== null ? raw : {}, req);
     return Response.json(command);
   } catch (err) {
+    // Details stay in the server log; the visitor gets a friendly message.
     console.error("voice-intent failed:", err);
-    const message = err instanceof Error ? err.message : "Something went wrong.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: "Alchemia couldn't understand that. Please try again." },
+      { status: 500 }
+    );
   }
 }

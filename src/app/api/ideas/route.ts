@@ -6,6 +6,11 @@ import {
   readIdeaRequest,
   type IdeaRequest,
 } from "@/lib/ideaRules";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+// Vercel Hobby allows up to 300 s per function (the plan's maximum).
+// Ideas can need two Spark calls (first answer + one retry).
+export const maxDuration = 300;
 
 function buildPrompt({ ingredients, goal, budgetPhp, timeMinutes }: IdeaRequest, colors: Record<string, string>): string {
   return `You are Alchemia, a friendly invention helper for students.
@@ -35,6 +40,9 @@ Return JSON only — no explanation, no markdown — as an array of exactly 3 ob
 
 // POST /api/ideas — body: { ingredients, goal, budgetPhp, timeMinutes, colors? }
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, "ideas");
+  if (limited) return limited;
+
   let req: IdeaRequest | null;
   let colors: Record<string, string> = {};
   try {
@@ -56,8 +64,11 @@ export async function POST(request: Request) {
     const ideas = await askForIdeas(buildPrompt(req, colors), req, 3);
     return Response.json({ ideas });
   } catch (err) {
+    // Details stay in the server log; the visitor gets a friendly message.
     console.error("ideas failed:", err);
-    const message = err instanceof Error ? err.message : "Something went wrong.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: "Alchemia couldn't brew ideas right now. Please try again." },
+      { status: 500 }
+    );
   }
 }

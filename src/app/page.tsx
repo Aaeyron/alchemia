@@ -13,6 +13,7 @@ import { PhotoStrip } from "@/components/PhotoStrip";
 import { ResultPanel } from "@/components/ResultPanel";
 import { TweakPanel, type TweakKind } from "@/components/TweakPanel";
 import { VoiceButton } from "@/components/VoiceButton";
+import { postJson } from "@/lib/api";
 import { emojiFor } from "@/lib/emoji";
 import {
   MAX_INGREDIENTS,
@@ -190,13 +191,7 @@ export default function Home() {
       setPhotos((current) => [...current, { id: photoId, dataUrl: image, boxes: [] }].slice(0, MAX_PHOTOS));
       setActivePhotoId(photoId);
 
-      const res = await fetch("/api/detect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Detection failed.");
+      const data = await postJson<{ objects: DetectedObject[] }>("/api/detect", { image });
       if (sessionId !== session.current) return;
 
       const found: DetectedObject[] = data.objects;
@@ -224,13 +219,8 @@ export default function Home() {
     setSegmenting((count) => count + 1);
 
     try {
-      const res = await fetch("/api/segment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, names: firstNames }),
-      });
-      const data = await res.json();
-      if (sessionId === session.current && res.ok && Array.isArray(data.boxes)) {
+      const data = await postJson<{ boxes: PhotoBox[] }>("/api/segment", { image, names: firstNames });
+      if (sessionId === session.current && Array.isArray(data.boxes)) {
         const boxes: PhotoBox[] = data.boxes;
         setPhotos((current) => current.map((photo) => (photo.id === photoId ? { ...photo, boxes } : photo)));
       }
@@ -306,14 +296,7 @@ export default function Home() {
     };
 
     try {
-      const res = await fetch("/api/ideas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Brewing failed.");
-
+      const data = await postJson<{ ideas: Idea[] }>("/api/ideas", request);
       setIdeas(data.ideas);
       setBrewedWith(request);
     } catch (err) {
@@ -345,23 +328,17 @@ export default function Home() {
       .map((ingredient) => ingredient.name);
 
     try {
-      const res = await fetch("/api/visualize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idea: {
-            title: idea.title,
-            description: idea.description,
-            materialsUsed: idea.materialsUsed,
-          },
-          ingredients: currentIngredients,
-          photos: photos.slice(0, MAX_PHOTOS).map((photo) => photo.dataUrl),
-          typedOnly,
-          materials: describeMaterials(ingredients, idea.materialsUsed),
-        }),
+      const data = await postJson<{ image: string }>("/api/visualize", {
+        idea: {
+          title: idea.title,
+          description: idea.description,
+          materialsUsed: idea.materialsUsed,
+        },
+        ingredients: currentIngredients,
+        photos: photos.slice(0, MAX_PHOTOS).map((photo) => photo.dataUrl),
+        typedOnly,
+        materials: describeMaterials(ingredients, idea.materialsUsed),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't make the picture.");
       if (id !== requestId.current) return; // the user moved on
 
       setConceptImage(data.image);
@@ -385,22 +362,16 @@ export default function Home() {
     setTweaking(true);
 
     try {
-      const res = await fetch("/api/tweak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idea: shownIdea,
-          ingredients: currentIngredients,
-          goal: brewedWith.goal,
-          budgetPhp: brewedWith.budgetPhp,
-          timeMinutes: brewedWith.timeMinutes,
-          tweak: kind,
-          missing,
-          colors: brewedWith.colors,
-        }),
+      const data = await postJson<{ idea: Idea; ingredients: string[] }>("/api/tweak", {
+        idea: shownIdea,
+        ingredients: currentIngredients,
+        goal: brewedWith.goal,
+        budgetPhp: brewedWith.budgetPhp,
+        timeMinutes: brewedWith.timeMinutes,
+        tweak: kind,
+        missing,
+        colors: brewedWith.colors,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't tweak the idea.");
       if (id !== requestId.current) return; // the user moved on
 
       // Save the current version (one level of history), then show the new one.
@@ -439,19 +410,13 @@ export default function Home() {
   // Voice: ask /api/voice-intent what the user meant, then do the same thing the buttons do.
   // Returns a short friendly reply for the mic button to show.
   async function handleVoiceText(text: string): Promise<string> {
-    const res = await fetch("/api/voice-intent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        ingredients: ingredients.map((ingredient) => ingredient.name),
-        goalSet: goal.trim() !== "",
-        ideaMaterials: shownIdea?.materialsUsed ?? [],
-      }),
+    // Errors (including "You've used Alchemia a lot today!") are FriendlyErrors; the mic button shows them.
+    const command = await postJson<VoiceIntent>("/api/voice-intent", {
+      text,
+      ingredients: ingredients.map((ingredient) => ingredient.name),
+      goalSet: goal.trim() !== "",
+      ideaMaterials: shownIdea?.materialsUsed ?? [],
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Couldn't understand that.");
-    const command: VoiceIntent = data;
 
     switch (command.intent) {
       case "set_goal": {

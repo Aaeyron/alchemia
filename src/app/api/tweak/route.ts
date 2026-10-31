@@ -8,6 +8,11 @@ import {
   readIdeaRequest,
   type IdeaRequest,
 } from "@/lib/ideaRules";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+// Vercel Hobby allows up to 300 s per function (the plan's maximum).
+// A tweak can need two Spark calls (first answer + one retry).
+export const maxDuration = 300;
 
 type Tweak = "missing" | "weird" | "easier";
 const TWEAKS: Tweak[] = ["missing", "weird", "easier"];
@@ -121,6 +126,9 @@ Return JSON only — no explanation, no markdown — as an array with exactly 1 
 
 // POST /api/tweak — body: { idea, ingredients, goal, budgetPhp, timeMinutes, tweak, missing?, colors? }
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, "tweak");
+  if (limited) return limited;
+
   let req: TweakRequest | null;
   try {
     req = readTweakRequest(await request.json());
@@ -152,8 +160,11 @@ export async function POST(request: Request) {
     if (!idea) throw new Error("Muse Spark didn't return an idea.");
     return Response.json({ idea, ingredients: req.ingredients });
   } catch (err) {
+    // Details stay in the server log; the visitor gets a friendly message.
     console.error("tweak failed:", err);
-    const message = err instanceof Error ? err.message : "Something went wrong.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: "Alchemia couldn't change the idea right now. Please try again." },
+      { status: 500 }
+    );
   }
 }

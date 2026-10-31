@@ -1,4 +1,8 @@
 import { askSpark, parseJson } from "@/lib/meta";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+// Vercel Hobby allows up to 300 s per function (the plan's maximum).
+export const maxDuration = 300;
 
 // Shape of each object Muse Spark finds in the photo.
 export type DetectedObject = {
@@ -14,6 +18,9 @@ Return JSON only — no explanation, no markdown — as an array like:
 
 // POST /api/detect  — body: { image: "data:image/jpeg;base64,..." }
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, "detect");
+  if (limited) return limited;
+
   try {
     const { image } = await request.json();
     if (typeof image !== "string" || !image.startsWith("data:image/")) {
@@ -25,8 +32,11 @@ export async function POST(request: Request) {
 
     return Response.json({ objects });
   } catch (err) {
+    // Details stay in the server log; the visitor gets a friendly message.
     console.error("detect failed:", err);
-    const message = err instanceof Error ? err.message : "Something went wrong.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: "Alchemia couldn't look at that photo right now. Please try again." },
+      { status: 500 }
+    );
   }
 }

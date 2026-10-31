@@ -1,5 +1,9 @@
 import { segmentImage, type SamBox } from "@/lib/meta";
+import { checkRateLimit } from "@/lib/rateLimit";
 import type { PhotoBox } from "@/lib/types";
+
+// Vercel Hobby allows up to 300 s per function (the plan's maximum).
+export const maxDuration = 300;
 
 const MAX_NAMES = 8;
 
@@ -44,6 +48,9 @@ function toFractions(name: string, box: SamBox): PhotoBox {
 
 // POST /api/segment — body: { image: "data:image/jpeg;base64,...", names: ["mug", ...] }
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, "segment");
+  if (limited) return limited; // the page just shows no boxes; the chips keep working
+
   let req: SegmentRequest | null;
   try {
     req = readRequest(await request.json());

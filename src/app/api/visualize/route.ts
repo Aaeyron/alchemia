@@ -1,5 +1,10 @@
 import { editImage, generateImage } from "@/lib/meta";
+import { checkRateLimit } from "@/lib/rateLimit";
 import type { MaterialInfo } from "@/lib/types";
+
+// Vercel Hobby allows up to 300 s per function (the plan's maximum).
+// This is the slowest route: an image edit, and possibly a text-to-image fallback after it.
+export const maxDuration = 300;
 
 const MAX_PHOTOS = 3;
 
@@ -140,6 +145,9 @@ ${colorRules(req, true)}`;
 
 // POST /api/visualize — body: { idea: { title, description, materialsUsed }, ingredients, photos?, typedOnly?, materials? }
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, "visualize");
+  if (limited) return limited;
+
   let req: VisualizeRequest | null;
   try {
     req = readRequest(await request.json());
@@ -169,8 +177,11 @@ export async function POST(request: Request) {
     console.log("visualize: used /images/generations");
     return Response.json({ image });
   } catch (err) {
+    // Details stay in the server log; the visitor gets a friendly message.
     console.error("visualize failed:", err);
-    const message = err instanceof Error ? err.message : "Something went wrong.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: "Alchemia couldn't paint the picture right now. Please try again." },
+      { status: 500 }
+    );
   }
 }
