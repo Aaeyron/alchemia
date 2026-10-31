@@ -1,0 +1,79 @@
+// Pick a fun emoji for an object name, e.g. "plastic bottle" -> 🧴.
+// The first keyword found in the name wins, so more specific words come first.
+const EMOJI_BY_KEYWORD: [string, string][] = [
+  ["toilet paper", "🧻"],
+  ["paper towel", "🧻"],
+  ["newspaper", "📰"],
+  ["candle", "🕯️"],
+  ["bottle", "🧴"],
+  ["cup", "🥤"],
+  ["mug", "☕"],
+  ["glass", "🥛"],
+  ["jar", "🫙"],
+  ["can", "🥫"],
+  ["box", "📦"],
+  ["cardboard", "📦"],
+  ["paper", "📄"],
+  ["book", "📚"],
+  ["pencil", "✏️"],
+  ["pen", "🖊️"],
+  ["crayon", "🖍️"],
+  ["marker", "🖍️"],
+  ["scissors", "✂️"],
+  ["ruler", "📏"],
+  ["yarn", "🧶"],
+  ["string", "🧶"],
+  ["thread", "🧵"],
+  ["button", "🔘"],
+  ["spoon", "🥄"],
+  ["fork", "🍴"],
+  ["plate", "🍽️"],
+  ["bowl", "🥣"],
+  ["straw", "🥤"],
+  ["sock", "🧦"],
+  ["shirt", "👕"],
+  ["cap", "🧢"],
+  ["hat", "👒"],
+  ["shoe", "👟"],
+  ["bag", "🛍️"],
+  ["basket", "🧺"],
+  ["phone", "📱"],
+  ["key", "🔑"],
+  ["battery", "🔋"],
+  ["lamp", "💡"],
+  ["bulb", "💡"],
+  ["clock", "⏰"],
+  ["plant", "🪴"],
+  ["leaf", "🍃"],
+  ["flower", "🌸"],
+  ["apple", "🍎"],
+  ["banana", "🍌"],
+  ["orange", "🍊"],
+  ["egg", "🥚"],
+  ["bread", "🍞"],
+  ["balloon", "🎈"],
+  ["ball", "⚽"],
+  ["teddy", "🧸"],
+  ["toy", "🧸"],
+  ["block", "🧱"],
+  ["brick", "🧱"],
+  ["stick", "🪵"],
+  ["wood", "🪵"],
+  ["rock", "🪨"],
+  ["stone", "🪨"],
+  ["magnet", "🧲"],
+  ["sponge", "🧽"],
+  ["brush", "🖌️"],
+  ["paint", "🎨"],
+];
+
+const FALLBACK = "🧩";
+
+export function emojiFor(name: string): string {
+  const lower = name.toLowerCase();
+  for (const [keyword, emoji] of EMOJI_BY_KEYWORD) {
+    // Whole-word match (plurals like "cups"/"boxes" allowed), so "can" doesn't match "candle".
+    if (new RegExp(`\\b${keyword}(s|es)?\\b`).test(lower)) return emoji;
+  }
+  return FALLBACK;
+}

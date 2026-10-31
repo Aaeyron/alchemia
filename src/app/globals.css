@@ -1,26 +1,179 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ---------- Palette ----------
+   Each color becomes a Tailwind class, e.g. bg-pink, bg-sky-soft, text-ink. */
+@theme {
+  --color-ink: #3b2f4a; /* body text: dark purple-gray */
+
+  --color-pink: #ff8fb8;
+  --color-pink-soft: #ffe0ec;
+  --color-sky: #7cc6fe;
+  --color-sky-soft: #dcefff;
+  --color-sunny: #ffd23f;
+  --color-sunny-soft: #fff3c4;
+  --color-mint: #6fdcb4;
+  --color-mint-soft: #d9f7ea;
+  --color-lavender: #b9a3f5;
+  --color-lavender-soft: #ece5ff;
 }
 
+/* Fredoka (loaded in layout.tsx) is the default font everywhere. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-fredoka), ui-rounded, system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-ink);
+  background-color: #efe8ff; /* shown only until the sky layer paints */
+}
+
+/* ---------- "Bubbly Sky" background (see BubbleBackground.tsx) ---------- */
+
+/* Fixed full-screen layer behind everything; never catches taps. */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(to bottom, #efe8ff 0%, #dceeff 60%, #e0f7ec 100%);
+}
+
+/* Pastel bubble: tinted body (lighter in the middle, stronger at the edge),
+   a defined rim in a deeper shade, a big glossy spot and a small glint.
+   Each tint class sets --tint (the body color as "R G B") and --rim. */
+.bubble {
+  position: absolute;
+  border-radius: 9999px;
+  border: 2.5px solid var(--rim);
+  background:
+    radial-gradient(circle at 32% 30%, rgb(255 255 255 / 0.95) 0 13%, transparent 14%),
+    radial-gradient(circle at 52% 20%, rgb(255 255 255 / 0.9) 0 5%, transparent 6%),
+    radial-gradient(circle at 40% 40%, rgb(var(--tint) / 0.45), rgb(var(--tint) / 0.65));
+  will-change: transform;
+  animation: float-up linear infinite; /* duration + delay set per bubble */
+}
+.bubble-pink { --tint: 255 143 184; --rim: #e8649a; }
+.bubble-sky { --tint: 124 198 254; --rim: #4aa3e6; }
+.bubble-sunny { --tint: 255 210 63; --rim: #e0ad12; }
+.bubble-mint { --tint: 111 220 180; --rim: #3dbd8f; }
+.bubble-lavender { --tint: 185 163 245; --rim: #8f72e6; }
+
+.sparkle {
+  position: absolute;
+  opacity: 0.9;
+  animation: twinkle 4s ease-in-out infinite; /* delay set per sparkle */
+}
+
+/* Reusable component styles. They live in the "components" layer so
+   Tailwind utility classes on the same element can still override them. */
+@layer components {
+  /* Thick rounded border + chunky offset "sticker" shadow (no blur). */
+  .sticker {
+    border: 3px solid var(--color-ink);
+    border-radius: 1.5rem;
+    box-shadow: 5px 5px 0 var(--color-ink);
+  }
+
+  /* Anything clickable: squishes down when pressed. */
+  .pressable {
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .pressable:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 6px 6px 0 var(--color-ink);
+  }
+  .pressable:active {
+    transform: translate(4px, 4px);
+    box-shadow: 1px 1px 0 var(--color-ink);
+  }
+
+  /* High-contrast safety callout: bright yellow, near-black text, hazard stripes on top. */
+  .safety-box {
+    position: relative;
+    overflow: hidden;
+    padding: 1.75rem 1rem 1rem;
+    border: 4px solid #1d1424;
+    border-radius: 1.25rem;
+    background: #ffe14d;
+    color: #1d1424;
+    box-shadow: 5px 5px 0 #1d1424;
+  }
+  .safety-box::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 12px;
+    background: repeating-linear-gradient(-45deg, #1d1424 0 10px, #ffe14d 10px 20px);
+  }
+}
+
+/* ---------- Animations ---------- */
+@keyframes blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+@keyframes rise {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-18px); opacity: 0; }
+}
+/* Bubbles drift from well below their resting spot (off-screen) to well above it
+   (off-screen), swaying a little. The short fades at the very start and end happen
+   at the screen edges, so bubbles are fully visible everywhere in between. */
+@keyframes float-up {
+  0% { transform: translate(0, 80vh); opacity: 0; }
+  6% { opacity: 1; }
+  50% { transform: translate(14px, 0); }
+  94% { opacity: 1; }
+  100% { transform: translate(0, -80vh); opacity: 0; }
+}
+@keyframes twinkle {
+  0%, 100% { transform: scale(0.7); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+/* Mascot eyes shrink from their own center when blinking. */
+.mascot-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 4s infinite;
+}
+.mascot-bobbing {
+  animation: bob 0.9s ease-in-out infinite;
+}
+.mascot-bobbing .mascot-bubble {
+  animation: rise 1.2s ease-out infinite;
+}
+
+.pop {
+  animation: pop 350ms ease-out;
+}
+
+/* Users who ask for less motion get a calm, still UI.
+   Bubbles and sparkles stay visible at their resting spots, just not moving. */
+@media (prefers-reduced-motion: reduce) {
+  .bubble,
+  .sparkle,
+  .mascot-eyes,
+  .mascot-bobbing,
+  .mascot-bobbing .mascot-bubble,
+  .pop {
+    animation: none;
+  }
+  .pressable,
+  .pressable:hover,
+  .pressable:active {
+    transition: none;
+  }
 }
