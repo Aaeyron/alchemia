@@ -3,9 +3,11 @@
 import { useRef, useState } from "react";
 import { BrewForm } from "@/components/BrewForm";
 import { Chip } from "@/components/Chip";
+import { ErrorBox } from "@/components/ErrorBox";
 import { IdeaCard } from "@/components/IdeaCard";
 import { Mascot } from "@/components/Mascot";
 import { ResultPanel } from "@/components/ResultPanel";
+import { TweakPanel, type TweakKind } from "@/components/TweakPanel";
 import { emojiFor } from "@/lib/emoji";
 import type { Idea } from "@/lib/types";
 
@@ -14,6 +16,21 @@ type DetectedObject = {
   name: string;
   material: string;
   color: string;
+};
+
+// The ingredients and limits the current ideas were brewed with (tweaks reuse them).
+type BrewRequest = {
+  ingredients: string[];
+  goal: string;
+  budgetPhp: number;
+  timeMinutes: number;
+};
+
+// One saved version of the result, for "Back to previous version".
+type Snapshot = {
+  tweakedIdea: Idea | null; // null = the original chosen idea
+  image: string | null;
+  ingredients: string[] | null; // null = the brewed ingredients
 };
 
 const MAX_SIZE = 1024; // longest side, in pixels
@@ -61,20 +78,45 @@ export default function Home() {
   const [time, setTime] = useState(10);
   const [brewing, setBrewing] = useState(false);
   const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [brewedWith, setBrewedWith] = useState<BrewRequest | null>(null);
   const [chosen, setChosen] = useState<number | null>(null);
 
   // Concept picture for the chosen idea (only made when the user taps "Show me!").
   const [visualizing, setVisualizing] = useState(false);
   const [conceptImage, setConceptImage] = useState<string | null>(null);
   const [visualizeError, setVisualizeError] = useState<string | null>(null);
+
+  // Tweaks: the tweaked version of the idea, the (possibly reduced) ingredient list,
+  // one step of history, and the last tweak asked for (for "Try again").
+  const [tweakedIdea, setTweakedIdea] = useState<Idea | null>(null);
+  const [tweakIngredients, setTweakIngredients] = useState<string[] | null>(null);
+  const [previous, setPrevious] = useState<Snapshot | null>(null);
+  const [tweaking, setTweaking] = useState(false);
+  const [tweakError, setTweakError] = useState<string | null>(null);
+  const [lastTweak, setLastTweak] = useState<{ kind: TweakKind; missing?: string[] } | null>(null);
+
   // The spot where the idea cards / result panel appear, so we can scroll back to it.
   const ideasArea = useRef<HTMLDivElement>(null);
+  // Bumped whenever the user moves on, so answers to older requests are ignored.
+  const requestId = useRef(0);
 
   const chosenIdea = chosen !== null ? ideas[chosen] : null;
+  // The idea shown in the result panel: the latest tweak, or the chosen card.
+  const shownIdea = tweakedIdea ?? chosenIdea;
+  const currentIngredients = tweakIngredients ?? brewedWith?.ingredients ?? [];
 
+  // Clear the picture, any tweaks and their history (and ignore requests still running).
   function clearResult() {
+    requestId.current++;
     setConceptImage(null);
+    setVisualizing(false);
     setVisualizeError(null);
+    setTweakedIdea(null);
+    setTweakIngredients(null);
+    setPrevious(null);
+    setTweaking(false);
+    setTweakError(null);
+    setLastTweak(null);
   }
 
   // Wait one tick so React has swapped cards <-> result before scrolling.
@@ -128,21 +170,24 @@ export default function Home() {
     clearResult();
     setBrewing(true);
 
+    const request: BrewRequest = {
+      ingredients: selected.map((i) => objects[i].name),
+      goal: goal.trim(),
+      budgetPhp: budget,
+      timeMinutes: time,
+    };
+
     try {
       const res = await fetch("/api/ideas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ingredients: selected.map((i) => objects[i].name),
-          goal: goal.trim(),
-          budgetPhp: budget,
-          timeMinutes: time,
-        }),
+        body: JSON.stringify(request),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Brewing failed.");
 
       setIdeas(data.ideas);
+      setBrewedWith(request);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -156,8 +201,12 @@ export default function Home() {
     setChosen(index);
   }
 
-  async function visualize() {
-    if (!chosenIdea) return;
+  // Make a concept picture for an idea (the shown one by default).
+  // The old picture stays on screen until the new one is ready.
+  async function visualize(idea: Idea | null = shownIdea) {
+    if (!idea) return;
+    const id = ++requestId.current;
+    const firstPicture = conceptImage === null;
     setVisualizeError(null);
     setVisualizing(true);
 
@@ -167,27 +216,85 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           idea: {
-            title: chosenIdea.title,
-            description: chosenIdea.description,
-            materialsUsed: chosenIdea.materialsUsed,
+            title: idea.title,
+            description: idea.description,
+            materialsUsed: idea.materialsUsed,
           },
-          ingredients: selected.map((i) => objects[i].name),
+          ingredients: currentIngredients,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't make the picture.");
+      if (id !== requestId.current) return; // the user moved on
 
       setConceptImage(data.image);
-      scrollToIdeasArea();
+      if (firstPicture) scrollToIdeasArea();
     } catch (err) {
-      setVisualizeError(err instanceof Error ? err.message : "Something went wrong.");
+      if (id === requestId.current) {
+        setVisualizeError(err instanceof Error ? err.message : "Something went wrong.");
+      }
     } finally {
-      setVisualizing(false);
+      if (id === requestId.current) setVisualizing(false);
     }
   }
 
+  // Ask Muse Spark to change the shown idea, then paint a new picture for it.
+  async function tweak(kind: TweakKind, missing?: string[]) {
+    if (!shownIdea || !brewedWith) return;
+    const id = ++requestId.current;
+    setTweakError(null);
+    setVisualizeError(null);
+    setLastTweak({ kind, missing });
+    setTweaking(true);
+
+    try {
+      const res = await fetch("/api/tweak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: shownIdea,
+          ingredients: currentIngredients,
+          goal: brewedWith.goal,
+          budgetPhp: brewedWith.budgetPhp,
+          timeMinutes: brewedWith.timeMinutes,
+          tweak: kind,
+          missing,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't tweak the idea.");
+      if (id !== requestId.current) return; // the user moved on
+
+      // Save the current version (one level of history), then show the new one.
+      setPrevious({ tweakedIdea, image: conceptImage, ingredients: tweakIngredients });
+      setTweakedIdea(data.idea);
+      setTweakIngredients(data.ingredients);
+      setTweaking(false);
+      scrollToIdeasArea();
+      visualize(data.idea);
+    } catch (err) {
+      if (id === requestId.current) {
+        setTweakError(err instanceof Error ? err.message : "Something went wrong.");
+        setTweaking(false);
+      }
+    }
+  }
+
+  function backToPrevious() {
+    if (!previous) return;
+    requestId.current++; // ignore a picture or tweak still running for the newer version
+    setTweakedIdea(previous.tweakedIdea);
+    setConceptImage(previous.image);
+    setTweakIngredients(previous.ingredients);
+    setPrevious(null);
+    setVisualizing(false);
+    setVisualizeError(null);
+    setTweaking(false);
+    setTweakError(null);
+  }
+
   function backToIdeas() {
-    setConceptImage(null); // the ideas and the chosen card stay as they were
+    clearResult(); // the ideas and the chosen card stay as they were
     scrollToIdeasArea();
   }
 
@@ -195,7 +302,7 @@ export default function Home() {
     <div className="flex flex-1 justify-center">
       <main className="flex w-full max-w-2xl flex-col gap-7 px-4 py-8 sm:px-6 sm:py-12">
         <header className="flex flex-col items-center text-center">
-          <Mascot bubbling={loading || brewing || visualizing} />
+          <Mascot bubbling={loading || brewing || visualizing || tweaking} />
           <h1 className="mt-2 text-5xl font-bold tracking-tight">Alchemia</h1>
           <p className="sticker mt-3 -rotate-1 bg-sunny-soft px-4 py-1.5 text-lg font-medium">
             Turn what you have into what you need.
@@ -304,10 +411,22 @@ export default function Home() {
           <p className="text-center text-xl font-semibold">✨ Mixing up something clever…</p>
         )}
 
-        <div ref={ideasArea} className="scroll-mt-6">
-          {/* Show the result panel in place of the cards once a concept picture exists. */}
-          {chosenIdea && photo && conceptImage ? (
-            <ResultPanel idea={chosenIdea} beforePhoto={photo} afterImage={conceptImage} onBack={backToIdeas} />
+        <div ref={ideasArea} className="flex scroll-mt-6 flex-col gap-7">
+          {/* Show the result panel (and tweaks) in place of the cards once a concept picture exists. */}
+          {shownIdea && photo && conceptImage ? (
+            <>
+              <ResultPanel idea={shownIdea} beforePhoto={photo} afterImage={conceptImage} onBack={backToIdeas} />
+              <TweakPanel
+                materials={shownIdea.materialsUsed}
+                busy={tweaking || visualizing}
+                tweaking={tweaking}
+                onTweak={tweak}
+                canGoBack={previous !== null}
+                onBackToPrevious={backToPrevious}
+                error={tweakError}
+                onRetry={() => lastTweak && tweak(lastTweak.kind, lastTweak.missing)}
+              />
+            </>
           ) : (
             ideas.length > 0 && (
               <section className="flex flex-col gap-7">
@@ -328,36 +447,23 @@ export default function Home() {
                 {chosenIdea && (
                   <button
                     type="button"
-                    onClick={visualize}
+                    onClick={() => visualize()}
                     disabled={visualizing}
                     className="sticker pressable min-h-14 bg-sunny px-6 py-3 text-xl font-bold disabled:pointer-events-none disabled:opacity-50"
                   >
                     ✨ Show me!
                   </button>
                 )}
-
-                {visualizing && (
-                  <p className="text-center text-xl font-semibold">🎨 Painting your idea…</p>
-                )}
-
-                {visualizeError && (
-                  <div role="alert" className="sticker flex flex-col gap-3 bg-pink-soft p-4 text-base">
-                    <p>
-                      <strong>Oops! </strong>
-                      {visualizeError}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={visualize}
-                      className="sticker pressable min-h-12 self-start bg-white px-5 py-2 font-semibold"
-                    >
-                      🔁 Try again
-                    </button>
-                  </div>
-                )}
               </section>
             )
           )}
+
+          {/* Picture progress and errors: under the cards, or under the result after a tweak. */}
+          {visualizing && (
+            <p className="text-center text-xl font-semibold">🎨 Painting your idea…</p>
+          )}
+
+          {visualizeError && <ErrorBox message={visualizeError} onRetry={() => visualize()} />}
         </div>
       </main>
     </div>

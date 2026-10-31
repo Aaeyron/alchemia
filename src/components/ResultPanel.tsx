@@ -1,3 +1,4 @@
+import { IdeaDetails } from "@/components/IdeaDetails";
 import { SafetyBox } from "@/components/SafetyBox";
 import type { Idea } from "@/lib/types";
 
@@ -28,6 +29,10 @@ export function ResultPanel({ idea, beforePhoto, afterImage, onBack }: ResultPan
         <span aria-hidden="true">{idea.emoji}</span>
         {idea.title}
       </h2>
+
+      <div>
+        <IdeaDetails idea={idea} />
+      </div>
 
       {/* Stacked on phones, side by side on wider screens */}
       <div className="grid gap-5 sm:grid-cols-2">
