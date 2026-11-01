@@ -1,18 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { AddIngredientForm } from "@/components/AddIngredientForm";
-import { BrewForm } from "@/components/BrewForm";
-import { BrewProgress } from "@/components/BrewProgress";
-import { ErrorBox } from "@/components/ErrorBox";
-import { IdeaCard } from "@/components/IdeaCard";
-import { IngredientChip } from "@/components/IngredientChip";
-import { Mascot } from "@/components/Mascot";
-import { PhotoBoxes } from "@/components/PhotoBoxes";
-import { PhotoStrip } from "@/components/PhotoStrip";
-import { ResultPanel } from "@/components/ResultPanel";
-import { TweakPanel, type TweakKind } from "@/components/TweakPanel";
+import { useEffect, useRef, useState } from "react";
+import { Stepper } from "@/components/Stepper";
+import type { TweakKind } from "@/components/TweakPanel";
 import { VoiceButton } from "@/components/VoiceButton";
+import { BuildStep } from "@/components/steps/BuildStep";
+import { IdeasStep } from "@/components/steps/IdeasStep";
+import { NeedStep } from "@/components/steps/NeedStep";
+import { SeeItStep } from "@/components/steps/SeeItStep";
+import { ShowStep } from "@/components/steps/ShowStep";
 import { postJson } from "@/lib/api";
 import { emojiFor } from "@/lib/emoji";
 import {
@@ -83,7 +79,18 @@ function downscale(dataUrl: string): Promise<string> {
   });
 }
 
+// Same ingredient names, in any order?
+function sameNames(a: string[], b: string[]): boolean {
+  return a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
+}
+
 export default function Home() {
+  // Which screen is showing: 1 Show, 2 Need, 3 Ideas, 4 See it, 5 Build.
+  const [currentStep, setCurrentStep] = useState(1);
+  // The step's main heading gets focus after every move (for keyboard and screen reader users).
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const focusAfterMove = useRef(false);
+
   // Photos (up to 3) and which one is shown big with its boxes.
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
@@ -91,7 +98,9 @@ export default function Home() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // Errors stay on the step where the request started: photo errors on step 1, brew errors on step 3.
   const [error, setError] = useState<string | null>(null);
+  const [brewError, setBrewError] = useState<string | null>(null);
 
   // How many /api/segment calls are still running (boxes are optional: chips work without them).
   const [segmenting, setSegmenting] = useState(0);
@@ -126,7 +135,7 @@ export default function Home() {
   // True while a voice recording / transcription / voice command is running.
   const [voiceActive, setVoiceActive] = useState(false);
 
-  // The spot where the idea cards / result panel appear, so we can scroll back to it.
+  // The spot where the result panel appears (step 4), so we can scroll back to it.
   const ideasArea = useRef<HTMLDivElement>(null);
   // Bumped whenever the user moves on, so answers to older requests are ignored.
   const requestId = useRef(0);
@@ -141,6 +150,23 @@ export default function Home() {
   // The idea shown in the result panel: the latest tweak, or the chosen card.
   const shownIdea = tweakedIdea ?? chosenIdea;
   const currentIngredients = tweakIngredients ?? brewedWith?.ingredients ?? [];
+
+  // Show another step: jump to the top, and move focus to its heading once it's on screen.
+  function goToStep(step: number) {
+    window.scrollTo({ top: 0 });
+    if (step === currentStep) {
+      stepHeading.current?.focus({ preventScroll: true });
+      return;
+    }
+    focusAfterMove.current = true;
+    setCurrentStep(step);
+  }
+
+  useEffect(() => {
+    if (!focusAfterMove.current) return; // not on the first load
+    focusAfterMove.current = false;
+    stepHeading.current?.focus({ preventScroll: true });
+  }, [currentStep]);
 
   // Clear the picture, any tweaks and their history (and ignore requests still running).
   function clearResult() {
@@ -173,6 +199,8 @@ export default function Home() {
     setIdeas([]);
     setChosen(null);
     setBrewedWith(null);
+    setError(null);
+    setBrewError(null);
     clearResult();
   }
 
@@ -276,7 +304,7 @@ export default function Home() {
   });
 
   async function brew() {
-    setError(null);
+    setBrewError(null);
     setIdeas([]);
     setChosen(null);
     clearResult();
@@ -300,14 +328,14 @@ export default function Home() {
       setIdeas(data.ideas);
       setBrewedWith(request);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setBrewError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBrewing(false);
     }
   }
 
   function chooseIdea(index: number) {
-    if (visualizing) return; // don't switch while a picture is being made for the current one
+    if (visualizing || tweaking) return; // don't switch while a picture or tweak is being made for the current one
     if (index !== chosen) clearResult();
     setChosen(index);
   }
@@ -404,7 +432,7 @@ export default function Home() {
 
   function backToIdeas() {
     clearResult(); // the ideas and the chosen card stay as they were
-    scrollToIdeasArea();
+    goToStep(3);
   }
 
   // Voice: ask /api/voice-intent what the user meant, then do the same thing the buttons do.
@@ -433,6 +461,7 @@ export default function Home() {
       case "weird":
       case "easier": {
         if (!shownIdea || !brewedWith) return "Pick an idea first, then ask me to change it!";
+        if (currentStep !== 4) return "Open your picture first (step 4), then ask me to change it!";
         tweak(command.intent, command.intent === "missing" ? command.items : undefined);
         if (command.intent === "missing") return `OK, redesigning without ${command.items?.join(", ")}…`;
         return command.intent === "weird" ? "Making it weird…" : "Making it easier…";
@@ -453,7 +482,7 @@ export default function Home() {
     />
   );
 
-  // The result panel replaces the idea cards once a concept picture exists.
+  // The result panel needs a concept picture (and the photos it was made from).
   const resultShown = Boolean(shownIdea && photos.length > 0 && conceptImage);
 
   // For the result panel: the shown idea's materials (with colors), and photo items it doesn't use.
@@ -465,207 +494,190 @@ export default function Home() {
     .filter((ingredient) => ingredient.source === "photo" && !usedIds.has(ingredient.id))
     .map((ingredient) => ingredient.name);
 
+  // A brew, picture or tweak is running: buttons that would cancel or replace it wait.
+  const working = brewing || visualizing || tweaking;
+  const canBrew = selectedIngredients.length > 0 && goal.trim() !== "" && !working;
+  const brewBlockedReason =
+    selectedIngredients.length === 0
+      ? "Pick at least one ingredient"
+      : goal.trim() === ""
+        ? "Tell Alchemia what you need first"
+        : "Wait for Alchemia to finish first";
+
+  // The ingredients, goal, budget or time changed since the ideas on screen were brewed.
+  const ideasOutdated =
+    ideas.length > 0 &&
+    brewedWith !== null &&
+    (!sameNames(
+      selectedIngredients.map((ingredient) => ingredient.name),
+      brewedWith.ingredients
+    ) ||
+      goal.trim() !== brewedWith.goal ||
+      budget !== brewedWith.budgetPhp ||
+      time !== brewedWith.timeMinutes);
+
+  // Which steps the stepper can open right now.
+  const pictureStarted =
+    shownIdea !== null && (conceptImage !== null || visualizing || tweaking || visualizeError !== null);
+  const reachable = [
+    true,
+    selectedIngredients.length > 0,
+    ideas.length > 0 || brewing || brewError !== null,
+    pictureStarted,
+    pictureStarted,
+  ];
+
+  // Brew starts the request and moves to the ideas right away.
+  function brewAndGo() {
+    if (!canBrew) return;
+    goToStep(3);
+    brew();
+  }
+
+  // "Show me!" starts the picture and moves to step 4 right away.
+  // If this idea already has a picture (or one is on its way), it just shows it.
+  function showMe() {
+    if (!conceptImage && !visualizing && !tweaking) visualize();
+    goToStep(4);
+  }
+
+  // Same reset as a new first photo, then back to step 1.
+  function startNewInvention() {
+    startOver();
+    goToStep(1);
+  }
+
+  const bubbling = loading || segmenting > 0 || working || voiceActive;
+
   return (
     <div className="flex flex-1 justify-center">
-      <main className="flex w-full max-w-2xl flex-col gap-7 px-4 py-8 sm:px-6 sm:py-12">
-        <header className="flex flex-col items-center text-center">
-          <Mascot bubbling={loading || segmenting > 0 || brewing || visualizing || tweaking || voiceActive} />
-          <h1 className="mt-2 text-5xl font-bold tracking-tight">Alchemia</h1>
-          <p className="sticker mt-3 -rotate-1 bg-sunny-soft px-4 py-1.5 text-lg font-medium">
-            Turn what you have into what you need.
-          </p>
+      <main className="flex w-full max-w-2xl flex-col gap-6 px-4 pt-6 pb-8 sm:px-6 sm:py-10">
+        <header className="flex flex-col gap-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight">Alchemia</h1>
+              <p className="sticker mt-2 inline-block -rotate-1 bg-sunny-soft px-3 py-1 text-base font-medium">
+                Turn what you have into what you need.
+              </p>
+            </div>
+            {/* How many ingredients are in the cauldron; tap to change them. */}
+            {selectedIngredients.length > 0 && (
+              <button
+                type="button"
+                onClick={() => goToStep(1)}
+                aria-label={`${selectedIngredients.length} ingredients in the cauldron. Go to step 1.`}
+                className="sticker pressable min-h-11 shrink-0 bg-lavender px-3 py-1 text-lg font-bold"
+              >
+                🧪 {selectedIngredients.length}
+              </button>
+            )}
+          </div>
+
+          <Stepper current={currentStep} reachable={reachable} onGo={goToStep} />
         </header>
 
-        {/* Upload box — the whole area is a label, so tapping anywhere opens the picker.
-            A photo picked here starts a fresh session. */}
-        <label
-          className={`sticker pressable flex min-h-44 flex-col items-center justify-center gap-2 bg-sky-soft p-6 text-center ${
-            loading ? "pointer-events-none opacity-60" : ""
-          }`}
-        >
-          <span aria-hidden="true" className="text-4xl">📸</span>
-          <span className="text-2xl font-semibold">＋ Add something</span>
-          <span className="text-base">Snap a photo of stuff around you!</span>
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={loading}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = ""; // allow picking the same file again
-              if (file) addPhoto(file, true);
-            }}
-          />
-        </label>
-
-        {activePhoto && (
-          // Polaroid-style frame, with tappable boxes once SAM has found the objects.
-          <PhotoBoxes
-            photo={activePhoto.dataUrl}
-            boxes={photoBoxes}
-            selected={selected}
-            onToggle={toggle}
-            flash={flash}
-          />
-        )}
-
-        {photos.length > 0 && (
-          <PhotoStrip
-            photos={photos}
-            activeId={activePhotoId}
-            onSelect={setActivePhotoId}
-            onAddPhoto={(file) => addPhoto(file, false)}
-            canAdd={photos.length < MAX_PHOTOS}
-            busy={loading}
-          />
-        )}
-
-        {segmenting > 0 && (
-          <div className="flex justify-center">
-            <BrewProgress kind="segment" compact />
-          </div>
-        )}
-
-        {loading && <BrewProgress kind="detect" photo={activePhoto?.dataUrl} />}
-
-        {error && (
-          <p role="alert" className="sticker bg-pink-soft p-4 text-base">
-            <strong>Oops! </strong>
-            {error}
-          </p>
-        )}
-
-        {photos.length > 0 && (
-          <section>
-            <h2 className="mb-1 text-2xl font-semibold">Pick your ingredients!</h2>
-            <p className="mb-4 text-base">Tap things to toss them in the cauldron.</p>
-            <div className="flex flex-wrap gap-3">
-              {ingredients.map((ingredient) => (
-                <IngredientChip
-                  key={ingredient.id}
-                  ingredient={ingredient}
-                  selected={selected.includes(ingredient.id)}
-                  onToggle={() => toggleFromChip(ingredient.id)}
-                  onRemove={() => removeIngredient(ingredient.id)}
-                />
-              ))}
-            </div>
-            <AddIngredientForm onAdd={addTyped} full={ingredients.length >= MAX_INGREDIENTS} />
-          </section>
-        )}
-
-        {ingredients.length > 0 && (
-          <section className="sticker overflow-hidden bg-lavender-soft">
-            {/* Chunky rim across the top of the cauldron box */}
-            <div className="flex items-center justify-between border-b-[3px] border-ink bg-lavender px-5 py-3">
-              <h2 className="text-2xl font-semibold">🧪 Your cauldron</h2>
-              <span className="rounded-full border-[3px] border-ink bg-white px-3 text-lg font-semibold">
-                {selectedIngredients.length}
-              </span>
-            </div>
-            <div className="p-5">
-              {selectedIngredients.length === 0 ? (
-                <p className="text-base">Empty for now — tap an ingredient to add it!</p>
-              ) : (
-                <ul className="flex flex-wrap gap-3">
-                  {selectedIngredients.map((ingredient, n) => (
-                    <li
-                      key={ingredient.id}
-                      className={`pop sticker flex items-center gap-1.5 rounded-2xl bg-white px-3 py-1.5 text-base ${
-                        n % 2 === 0 ? "-rotate-2" : "rotate-2"
-                      }`}
-                    >
-                      <span aria-hidden="true">{emojiFor(ingredient.name)}</span>
-                      {ingredient.name}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-        )}
-
-        {selectedIngredients.length > 0 && (
-          <BrewForm
-            goal={goal}
-            onGoalChange={setGoal}
-            budget={budget}
-            onBudgetChange={setBudget}
-            time={time}
-            onTimeChange={setTime}
-            brewing={brewing}
-            onBrew={brew}
-            voice={voiceButton}
-          />
-        )}
-
-        <div ref={ideasArea} className="flex scroll-mt-6 flex-col gap-7">
-          {/* The bubbling cauldron, right where the 3 idea cards will appear. */}
-          {brewing && (
-            <BrewProgress
-              kind="brew"
-              emojis={selectedIngredients.map((ingredient) => emojiFor(ingredient.name))}
+        {/* A new key per step replays the short slide-in (switched off for reduced motion). */}
+        <div key={currentStep} className="step-in">
+          {currentStep === 1 && (
+            <ShowStep
+              headingRef={stepHeading}
+              bubbling={bubbling}
+              photos={photos}
+              activePhoto={activePhoto}
+              onSelectPhoto={setActivePhotoId}
+              photoBoxes={photoBoxes}
+              flash={flash}
+              ingredients={ingredients}
+              selected={selected}
+              onToggleBox={toggle}
+              onToggleChip={toggleFromChip}
+              onRemove={removeIngredient}
+              onAddTyped={addTyped}
+              ingredientsFull={ingredients.length >= MAX_INGREDIENTS}
+              onNewPhoto={(file) => addPhoto(file, true)}
+              onAddPhoto={(file) => addPhoto(file, false)}
+              canAddPhoto={photos.length < MAX_PHOTOS}
+              loading={loading}
+              uploadDisabled={loading || working}
+              segmenting={segmenting > 0}
+              error={error}
+              onNext={() => goToStep(2)}
             />
           )}
 
-          {/* Show the result panel (and tweaks) in place of the cards once a concept picture exists. */}
-          {resultShown && shownIdea && conceptImage ? (
-            <>
-              <ResultPanel
-                idea={shownIdea}
-                beforePhotos={photos.map((photo) => photo.dataUrl)}
-                materials={shownMaterials}
-                notUsed={notUsed}
-                afterImage={conceptImage}
-                painting={visualizing}
-                onBack={backToIdeas}
-              />
-              <TweakPanel
-                materials={shownIdea.materialsUsed}
-                busy={tweaking || visualizing}
-                tweaking={tweaking}
-                onTweak={tweak}
-                canGoBack={previous !== null}
-                onBackToPrevious={backToPrevious}
-                error={tweakError}
-                onRetry={() => lastTweak && tweak(lastTweak.kind, lastTweak.missing)}
-                voice={voiceButton}
-              />
-            </>
-          ) : (
-            ideas.length > 0 && (
-              <section className="flex flex-col gap-7">
-                <div>
-                  <h2 className="mb-1 text-2xl font-semibold">Your ideas are ready!</h2>
-                  <p className="text-base">Tap the one you want to make.</p>
-                </div>
-                {/* The cards pop in one after another (100 ms apart). */}
-                {ideas.map((idea, i) => (
-                  <div key={i} className="pop-in" style={{ animationDelay: `${i * 100}ms` }}>
-                    <IdeaCard idea={idea} index={i} chosen={chosen === i} onChoose={() => chooseIdea(i)} />
-                  </div>
-                ))}
-
-                {chosenIdea && (
-                  <button
-                    type="button"
-                    onClick={() => visualize()}
-                    disabled={visualizing}
-                    className="sticker pressable min-h-14 bg-sunny px-6 py-3 text-xl font-bold disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    ✨ Show me!
-                  </button>
-                )}
-              </section>
-            )
+          {currentStep === 2 && (
+            <NeedStep
+              headingRef={stepHeading}
+              bubbling={bubbling}
+              selectedIngredients={selectedIngredients}
+              goal={goal}
+              onGoalChange={setGoal}
+              budget={budget}
+              onBudgetChange={setBudget}
+              time={time}
+              onTimeChange={setTime}
+              brewing={brewing}
+              canBrew={canBrew}
+              brewBlockedReason={brewBlockedReason}
+              onBrew={brewAndGo}
+              voice={voiceButton}
+              onBack={() => goToStep(1)}
+            />
           )}
 
-          {/* First picture: the painting animation appears under the cards.
-              (Later pictures show their progress inside the result panel's AFTER frame.) */}
-          {visualizing && !resultShown && <BrewProgress kind="paint" />}
+          {currentStep === 3 && (
+            <IdeasStep
+              headingRef={stepHeading}
+              bubbling={bubbling}
+              brewing={brewing}
+              brewEmojis={selectedIngredients.map((ingredient) => emojiFor(ingredient.name))}
+              ideas={ideas}
+              chosen={chosen}
+              onChoose={chooseIdea}
+              error={brewError}
+              outdated={ideasOutdated}
+              canBrew={canBrew}
+              onBrew={brewAndGo}
+              onShowMe={showMe}
+              onBack={() => goToStep(2)}
+            />
+          )}
 
-          {visualizeError && <ErrorBox message={visualizeError} onRetry={() => visualize()} />}
+          {currentStep === 4 && (
+            <SeeItStep
+              headingRef={stepHeading}
+              resultRef={ideasArea}
+              bubbling={bubbling}
+              idea={shownIdea}
+              beforePhotos={photos.map((photo) => photo.dataUrl)}
+              materials={shownMaterials}
+              notUsed={notUsed}
+              conceptImage={resultShown ? conceptImage : null}
+              visualizing={visualizing}
+              visualizeError={visualizeError}
+              onRetryPicture={() => visualize()}
+              tweaking={tweaking}
+              tweakError={tweakError}
+              onTweak={tweak}
+              onRetryTweak={() => lastTweak && tweak(lastTweak.kind, lastTweak.missing)}
+              canGoBack={previous !== null}
+              onBackToPrevious={backToPrevious}
+              voice={voiceButton}
+              onTryAnother={backToIdeas}
+              onBuild={() => goToStep(5)}
+            />
+          )}
+
+          {currentStep === 5 && (
+            <BuildStep
+              headingRef={stepHeading}
+              bubbling={bubbling}
+              idea={shownIdea}
+              canStartNew={!loading && !working && !voiceActive}
+              onBack={() => goToStep(4)}
+              onStartNew={startNewInvention}
+            />
+          )}
         </div>
       </main>
     </div>

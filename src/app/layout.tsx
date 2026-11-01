@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fredoka } from "next/font/google";
 import { BubbleBackground } from "@/components/BubbleBackground";
 import "./globals.css";
@@ -12,6 +12,12 @@ const fredoka = Fredoka({
 export const metadata: Metadata = {
   title: "Alchemia",
   description: "Turn what you have into what you need.",
+};
+
+// "cover" lets the page reach under the phone's home bar, so env(safe-area-inset-bottom)
+// gives the sticky action bar the right padding.
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

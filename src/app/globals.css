@@ -22,6 +22,11 @@
   --font-sans: var(--font-fredoka), ui-rounded, system-ui, sans-serif;
 }
 
+/* Keep focused or scrolled-to things clear of the sticky action bar on phones. */
+html {
+  scroll-padding-bottom: 8rem;
+}
+
 body {
   color: var(--color-ink);
   background-color: #efe8ff; /* shown only until the sky layer paints */
@@ -173,6 +178,15 @@ body {
   animation: pop-in 250ms ease-out both; /* "both" keeps it hidden during a stagger delay */
 }
 
+/* A new step slides in a little from the right while fading in (page.tsx). */
+@keyframes step-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.step-in {
+  animation: step-in 200ms ease-out;
+}
+
 /* A new rotating message fades in. */
 @keyframes wip-fade {
   from { opacity: 0; }
@@ -288,6 +302,7 @@ body {
   .mascot-bobbing .mascot-bubble,
   .pop,
   .pop-in,
+  .step-in,
   .wip-message {
     animation: none;
   }

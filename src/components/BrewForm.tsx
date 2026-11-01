@@ -15,6 +15,7 @@ type BrewFormProps = {
   brewing: boolean;
   onBrew: () => void;
   voice?: React.ReactNode; // optional mic button, shown under the goal input
+  showButton?: boolean; // false = no Brew button here (pressing Enter still brews)
 };
 
 // Goal, budget and time inputs, plus the big "Brew possibilities" button.
@@ -28,6 +29,7 @@ export function BrewForm({
   brewing,
   onBrew,
   voice,
+  showButton = true,
 }: BrewFormProps) {
   const canBrew = goal.trim() !== "" && !brewing;
 
@@ -83,13 +85,15 @@ export function BrewForm({
         </div>
       </fieldset>
 
-      <button
-        type="submit"
-        disabled={!canBrew}
-        className="sticker pressable min-h-14 bg-pink px-6 py-3 text-xl font-bold disabled:pointer-events-none disabled:opacity-50"
-      >
-        🧪 Brew possibilities
-      </button>
+      {showButton && (
+        <button
+          type="submit"
+          disabled={!canBrew}
+          className="sticker pressable min-h-14 bg-pink px-6 py-3 text-xl font-bold disabled:pointer-events-none disabled:opacity-50"
+        >
+          🧪 Brew possibilities
+        </button>
+      )}
     </form>
   );
 }

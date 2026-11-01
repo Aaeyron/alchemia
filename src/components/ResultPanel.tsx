@@ -1,5 +1,6 @@
 import { BeforeSide } from "@/components/BeforeSide";
 import { BrewProgress } from "@/components/BrewProgress";
+import { BuildSteps } from "@/components/BuildSteps";
 import { IdeaDetails } from "@/components/IdeaDetails";
 import { Polaroid } from "@/components/Polaroid";
 import { SafetyBox } from "@/components/SafetyBox";
@@ -12,7 +13,8 @@ type ResultPanelProps = {
   notUsed: string[]; // things in the photos this idea doesn't use
   afterImage: string;
   painting?: boolean; // a new AFTER picture is being made (the old one stays until it's ready)
-  onBack: () => void;
+  showBuild?: boolean; // false = leave out the build steps and safety note (they have their own step)
+  onBack?: () => void; // shows a "Try another idea" button when given
 };
 
 // Before/after pictures, build steps and the safety note for the chosen idea.
@@ -23,6 +25,7 @@ export function ResultPanel({
   notUsed,
   afterImage,
   painting = false,
+  showBuild = true,
   onBack,
 }: ResultPanelProps) {
   return (
@@ -55,34 +58,24 @@ export function ResultPanel({
       </div>
       <p className="-mt-2 text-center text-sm">Concept picture. The real thing may look different.</p>
 
-      {idea.buildSteps.length > 0 && (
+      {showBuild && idea.buildSteps.length > 0 && (
         <div>
           <h3 className="mb-3 text-xl font-semibold">How to make it</h3>
-          <ol className="flex flex-col gap-3">
-            {idea.buildSteps.map((step, i) => (
-              <li key={i} className="sticker flex items-start gap-3 rounded-2xl bg-white p-3">
-                <span
-                  aria-hidden="true"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[3px] border-ink bg-sunny text-lg font-bold"
-                >
-                  {i + 1}
-                </span>
-                <span className="pt-1 text-base leading-relaxed">{step}</span>
-              </li>
-            ))}
-          </ol>
+          <BuildSteps steps={idea.buildSteps} />
         </div>
       )}
 
-      <SafetyBox>{idea.safetyNote}</SafetyBox>
+      {showBuild && <SafetyBox>{idea.safetyNote}</SafetyBox>}
 
-      <button
-        type="button"
-        onClick={onBack}
-        className="sticker pressable min-h-12 bg-white px-5 py-2 text-lg font-semibold"
-      >
-        ← Try another idea
-      </button>
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="sticker pressable min-h-12 bg-white px-5 py-2 text-lg font-semibold"
+        >
+          ← Try another idea
+        </button>
+      )}
     </section>
   );
 }
