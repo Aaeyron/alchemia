@@ -454,6 +454,70 @@ body {
   animation: pop 350ms ease-out;
 }
 
+/* ---------- Bubbles talking (SpeechBubble.tsx, Mascot.tsx) ---------- */
+
+/* The speech bubble pops in from the mascot's side. */
+@keyframes speech-pop {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.speech-pop {
+  transform-origin: left center;
+  animation: speech-pop 200ms ease-out both;
+}
+/* A tiny wiggle when a new line replaces the old one. Two identical copies take turns,
+   so switching from one to the other restarts the wiggle. */
+@keyframes speech-wiggle-a {
+  0%, 100% { transform: rotate(0); }
+  30% { transform: rotate(-1.5deg); }
+  70% { transform: rotate(1.5deg); }
+}
+@keyframes speech-wiggle-b {
+  0%, 100% { transform: rotate(0); }
+  30% { transform: rotate(-1.5deg); }
+  70% { transform: rotate(1.5deg); }
+}
+.speech-wiggle-a { animation: speech-wiggle-a 300ms ease-in-out; }
+.speech-wiggle-b { animation: speech-wiggle-b 300ms ease-in-out; }
+
+/* The blinking caret at the end of the line while it types out. */
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+.speech-caret {
+  animation: caret-blink 0.8s steps(1) infinite;
+}
+
+/* Talking: the smile opens and closes, and the mascot bounces a little
+   (unless it's already bobbing because a request is running). */
+@keyframes talk {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.9); }
+}
+.mascot-talking .mascot-mouth {
+  transform-box: fill-box;
+  transform-origin: center top;
+  animation: talk 0.25s ease-in-out infinite;
+}
+@keyframes talk-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.mascot-talking:not(.mascot-bobbing) {
+  animation: talk-bounce 0.5s ease-in-out infinite;
+}
+
+/* Step 5: one happy jump when the project is ready. */
+@keyframes cheer-jump {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  30% { transform: translateY(-18px) rotate(-5deg); }
+  60% { transform: translateY(0) rotate(0); }
+  78% { transform: translateY(-6px) rotate(3deg); }
+}
+.mascot-cheer {
+  animation: cheer-jump 700ms ease-out;
+}
+
 /* ---------- Work-in-progress animations (BrewProgress.tsx) ----------
    Every animated piece also has the class "wip", so reduced motion can switch them all off.
    The base styles (without animation) are a nice still frame, so nothing disappears. */
@@ -594,6 +658,14 @@ body {
   .pop-in,
   .step-in,
   .rubber-stamp,
+  .speech-pop,
+  .speech-wiggle-a,
+  .speech-wiggle-b,
+  .speech-caret,
+  .mascot-talking,
+  .mascot-talking:not(.mascot-bobbing),
+  .mascot-talking .mascot-mouth,
+  .mascot-cheer,
   .wip-message {
     animation: none;
   }

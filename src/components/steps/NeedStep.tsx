@@ -8,6 +8,7 @@ import type { Ingredient } from "@/lib/types";
 
 type NeedStepProps = {
   headingRef: RefObject<HTMLHeadingElement | null>;
+  say: string; // the mascot's line
   bubbling: boolean;
   selectedIngredients: Ingredient[];
   goal: string;
@@ -35,7 +36,7 @@ export function NeedStep(props: NeedStepProps) {
       emoji="🎯"
       title="Need"
       instruction="Tell Alchemia what you want to make, and how much money and time you have."
-      say="What do you need?"
+      say={props.say}
       bubbling={props.bubbling}
       headingRef={props.headingRef}
       back={{ label: "← Back", onClick: props.onBack }}

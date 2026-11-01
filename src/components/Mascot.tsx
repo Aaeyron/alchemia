@@ -1,5 +1,6 @@
 // "Bubbles", Alchemia's original cauldron mascot, drawn with inline SVG.
-// It blinks every few seconds, and bobs with rising bubbles while `bubbling` is true.
+// It blinks every few seconds, bobs with rising bubbles while `bubbling` is true,
+// and moves its mouth (with a little bounce) while `talking` is true.
 // Animations are defined in globals.css (and switched off for reduced-motion users).
 
 const INK = "#3b2f4a";
@@ -7,9 +8,11 @@ const INK = "#3b2f4a";
 type MascotProps = {
   size?: number;
   bubbling?: boolean;
+  talking?: boolean;
 };
 
-export function Mascot({ size = 112, bubbling = false }: MascotProps) {
+export function Mascot({ size = 112, bubbling = false, talking = false }: MascotProps) {
+  const classes = [bubbling && "mascot-bobbing", talking && "mascot-talking"].filter(Boolean).join(" ");
   return (
     <svg
       viewBox="0 0 120 120"
@@ -17,7 +20,7 @@ export function Mascot({ size = 112, bubbling = false }: MascotProps) {
       height={size}
       role="img"
       aria-label="Bubbles, the smiling cauldron"
-      className={bubbling ? "mascot-bobbing" : undefined}
+      className={classes || undefined}
     >
       {/* Bubbles floating out of the pot */}
       <g fill="#fff" stroke={INK} strokeWidth="3">
@@ -57,8 +60,15 @@ export function Mascot({ size = 112, bubbling = false }: MascotProps) {
       <ellipse cx="34" cy="86" rx="7" ry="4" fill="#ff8fb8" opacity="0.8" />
       <ellipse cx="86" cy="86" rx="7" ry="4" fill="#ff8fb8" opacity="0.8" />
 
-      {/* Smile */}
-      <path d="M50 86 Q60 96 70 86" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+      {/* Smile (opens and closes while talking) */}
+      <path
+        className="mascot-mouth"
+        d="M50 86 Q60 96 70 86"
+        fill="none"
+        stroke={INK}
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

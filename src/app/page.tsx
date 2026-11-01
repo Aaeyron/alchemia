@@ -13,6 +13,7 @@ import { NeedStep } from "@/components/steps/NeedStep";
 import { SeeItStep } from "@/components/steps/SeeItStep";
 import { ShowStep } from "@/components/steps/ShowStep";
 import { postJson } from "@/lib/api";
+import { useBubbleLine, useLongWait, useSettledValue, type BubbleSituation } from "@/lib/bubbleLines";
 import { emojiFor } from "@/lib/emoji";
 import {
   MAX_INGREDIENTS,
@@ -137,6 +138,8 @@ export default function Home() {
   const [repaints, setRepaints] = useState(0);
   // True after a tweak until its new picture arrives: the picture on screen is the previous version's.
   const [pictureOutdated, setPictureOutdated] = useState(false);
+  // How many tweaks this idea has had (only for Bubbles' "you kept improving it" line).
+  const [tweakCount, setTweakCount] = useState(0);
 
   // Tweaks: the tweaked version of the idea, the (possibly reduced) ingredient list,
   // one step of history, and the last tweak asked for (for "Try again").
@@ -192,6 +195,7 @@ export default function Home() {
     setPictureCheck(null);
     setRepaints(0);
     setPictureOutdated(false);
+    setTweakCount(0);
     setTweakedIdea(null);
     setTweakIngredients(null);
     setPrevious(null);
@@ -474,6 +478,7 @@ export default function Home() {
       setTweakedIdea(data.idea);
       setTweakIngredients(data.ingredients);
       setRepaints(0); // a new version of the idea gets its own repaints
+      setTweakCount((count) => count + 1);
       // The new idea shows right away; until its picture arrives (or if painting fails),
       // the old picture stays, labelled as the previous version's.
       if (conceptImage) setPictureOutdated(true);
@@ -626,6 +631,42 @@ export default function Home() {
 
   const bubbling = loading || segmenting > 0 || working || voiceActive;
 
+  // ---------- What Bubbles says (templates in bubbleLines.ts; no API calls) ----------
+  // The goal only counts once the user has stopped typing for a second.
+  const settledGoal = useSettledValue(goal.trim(), 1000);
+  // The same request running for 12 s (like BrewProgress's "still working" hint).
+  const longWait = useLongWait(
+    loading ? "detect" : brewing ? "brew" : tweaking ? "tweak" : visualizing ? "paint" : null
+  );
+
+  function bubbleSituation(): BubbleSituation {
+    if (longWait) return { kind: "slow" };
+    const title = shownIdea?.title ?? "";
+    switch (currentStep) {
+      case 1:
+        if (loading) return { kind: "show-reading" };
+        if (ingredients.length > 0) return { kind: "show-found", count: ingredients.length };
+        return photos.length > 0 || error ? { kind: "show-none" } : { kind: "show-empty" };
+      case 2:
+        return settledGoal !== "" ? { kind: "need-goal", goal: settledGoal, free: budget === 0 } : { kind: "need" };
+      case 3:
+        if (brewing) return { kind: "brewing", count: selectedIngredients.length };
+        if (brewError) return { kind: "brew-error" };
+        return { kind: "ideas", goal: brewedWith?.goal ?? settledGoal };
+      case 4:
+        if (tweaking && lastTweak?.kind === "missing") {
+          return { kind: "tweak-missing", item: lastTweak.missing?.join(", ") || "that" };
+        }
+        if (tweaking) return { kind: lastTweak?.kind === "weird" ? "tweak-weird" : "tweak-easier" };
+        if (visualizeError) return { kind: "paint-failed" };
+        if (visualizing) return { kind: "painting", title };
+        return { kind: "picture", title };
+      default:
+        return { kind: "build", title, manyTweaks: tweakCount >= 3 };
+    }
+  }
+  const bubbleLine = useBubbleLine(bubbleSituation());
+
   return (
     <div className="flex flex-1 justify-center">
       <main className="flex w-full max-w-2xl flex-col gap-section px-4 pt-6 pb-8 sm:px-6 sm:py-10">
@@ -660,6 +701,7 @@ export default function Home() {
           {currentStep === 1 && (
             <ShowStep
               headingRef={stepHeading}
+              say={bubbleLine}
               bubbling={bubbling}
               photos={photos}
               activePhoto={activePhoto}
@@ -687,6 +729,7 @@ export default function Home() {
           {currentStep === 2 && (
             <NeedStep
               headingRef={stepHeading}
+              say={bubbleLine}
               bubbling={bubbling}
               selectedIngredients={selectedIngredients}
               goal={goal}
@@ -709,6 +752,7 @@ export default function Home() {
           {currentStep === 3 && (
             <IdeasStep
               headingRef={stepHeading}
+              say={bubbleLine}
               bubbling={bubbling}
               brewing={brewing}
               brewEmojis={selectedIngredients.map((ingredient) => emojiFor(ingredient.name))}
@@ -728,6 +772,7 @@ export default function Home() {
           {currentStep === 4 && (
             <SeeItStep
               headingRef={stepHeading}
+              say={bubbleLine}
               resultRef={ideasArea}
               bubbling={bubbling}
               idea={shownIdea}
@@ -759,6 +804,7 @@ export default function Home() {
           {currentStep === 5 && (
             <BuildStep
               headingRef={stepHeading}
+              say={bubbleLine}
               bubbling={bubbling}
               idea={shownIdea}
               ingredients={ingredients}

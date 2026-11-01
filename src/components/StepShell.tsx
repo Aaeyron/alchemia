@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { Button } from "@/components/Button";
 import { Squiggle } from "@/components/Doodles";
-import { Mascot } from "@/components/Mascot";
+import { SpeechBubble } from "@/components/SpeechBubble";
 
 // One button in the bottom action bar. `reason` is shown when the button is disabled.
 export type StepAction = {
@@ -15,8 +15,9 @@ type StepShellProps = {
   emoji: string;
   title: string;
   instruction: string; // one friendly line under the heading
-  say: string; // what the mascot says on this step
+  say: string; // what the mascot says right now (from bubbleLines.ts)
   bubbling: boolean; // something is running: the mascot bobs
+  cheer?: boolean; // the mascot jumps for joy once (step 5)
   headingRef: RefObject<HTMLHeadingElement | null>; // the page moves focus here on every step change
   back?: StepAction;
   next?: StepAction;
@@ -31,6 +32,7 @@ export function StepShell({
   instruction,
   say,
   bubbling,
+  cheer = false,
   headingRef,
   back,
   next,
@@ -41,19 +43,7 @@ export function StepShell({
 
   return (
     <div className="flex flex-col gap-section">
-      <div className="flex items-center gap-3">
-        <div className="shrink-0">
-          <Mascot size={80} bubbling={bubbling} />
-        </div>
-        {/* Speech bubble, with a little tail pointing at the mascot */}
-        <p className="sticker caption relative bg-white px-4 py-2 text-2xl">
-          <span
-            aria-hidden="true"
-            className="absolute top-1/2 -left-[11px] h-4 w-4 -translate-y-1/2 rotate-45 border-b-3 border-l-3 border-ink bg-white"
-          />
-          {say}
-        </p>
-      </div>
+      <SpeechBubble line={say} bubbling={bubbling} cheer={cheer} />
 
       <div>
         <h2 ref={headingRef} tabIndex={-1} className="h-step flex items-center gap-2">

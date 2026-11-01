@@ -13,6 +13,7 @@ import type { Idea, Ingredient, MaterialInfo } from "@/lib/types";
 
 type SeeItStepProps = {
   headingRef: RefObject<HTMLHeadingElement | null>;
+  say: string; // the mascot's line
   resultRef: RefObject<HTMLDivElement | null>; // the page scrolls here when a new picture or tweak arrives
   bubbling: boolean;
   idea: Idea | null; // the shown idea (latest tweak, or the chosen card)
@@ -43,6 +44,7 @@ type SeeItStepProps = {
 // Step 4: before/after picture, and tweaks.
 export function SeeItStep({
   headingRef,
+  say,
   resultRef,
   bubbling,
   idea,
@@ -76,7 +78,7 @@ export function SeeItStep({
       emoji="✨"
       title="See it"
       instruction="Here's the concept picture of your idea. Tweak it until you love it!"
-      say="Ta-da! Want to change anything?"
+      say={say}
       bubbling={bubbling}
       headingRef={headingRef}
       back={{

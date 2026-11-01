@@ -13,6 +13,7 @@ import type { Ingredient, UploadedPhoto } from "@/lib/types";
 
 type ShowStepProps = {
   headingRef: RefObject<HTMLHeadingElement | null>;
+  say: string; // the mascot's line
   bubbling: boolean;
   photos: UploadedPhoto[];
   activePhoto: UploadedPhoto | null;
@@ -45,7 +46,7 @@ export function ShowStep(props: ShowStepProps) {
       emoji="📸"
       title="Show"
       instruction="Snap a photo of things around you, then tap the ingredients you want to use."
-      say="Show me what you've got!"
+      say={props.say}
       bubbling={props.bubbling}
       headingRef={props.headingRef}
       next={{

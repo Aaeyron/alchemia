@@ -10,6 +10,7 @@ import type { Idea } from "@/lib/types";
 
 type IdeasStepProps = {
   headingRef: RefObject<HTMLHeadingElement | null>;
+  say: string; // the mascot's line
   bubbling: boolean;
   brewing: boolean;
   brewEmojis: string[]; // the cauldron's ingredients, for the brewing animation
@@ -34,7 +35,7 @@ export function IdeasStep(props: IdeasStepProps) {
       emoji="💡"
       title="Ideas"
       instruction="Tap the idea you like best, then see its concept picture."
-      say="Pick your favorite!"
+      say={props.say}
       bubbling={props.bubbling}
       headingRef={props.headingRef}
       back={{ label: "← Change my goal", onClick: props.onBack }}

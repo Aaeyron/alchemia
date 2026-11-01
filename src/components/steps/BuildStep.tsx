@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { BuildSteps } from "@/components/BuildSteps";
 import { PaperClip, Pencil } from "@/components/Doodles";
 import { RecipeCard } from "@/components/RecipeCard";
@@ -8,6 +8,7 @@ import { SafetyBox } from "@/components/SafetyBox";
 import { StepShell } from "@/components/StepShell";
 import { StickerCard } from "@/components/StickerCard";
 import { UsageStamp } from "@/components/UsageStamp";
+import { pickLine } from "@/lib/bubbleLines";
 import type { Idea, Ingredient } from "@/lib/types";
 
 type BuildStepProps = {
@@ -19,6 +20,7 @@ type BuildStepProps = {
   canStartNew: boolean;
   onBack: () => void; // to step 4
   onStartNew: () => void;
+  say: string; // the mascot's line (until it cheers)
 };
 
 // Step 5: how to build the current idea, step by step, and how to stay safe.
@@ -31,13 +33,35 @@ export function BuildStep({
   canStartNew,
   onBack,
   onStartNew,
+  say,
 }: BuildStepProps) {
+  // When the "Project ready ✓" stamp scrolls into view, Bubbles cheers once with a "done" line.
+  const stamp = useRef<HTMLParagraphElement>(null);
+  const [cheerLine, setCheerLine] = useState<string | null>(null);
+  const hasIdea = idea !== null; // the stamp only exists when there's an idea
+
+  useEffect(() => {
+    const element = stamp.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setCheerLine(pickLine({ kind: "done" }, null));
+        observer.disconnect(); // once per visit to this step
+      },
+      { threshold: 0.6 }
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasIdea]);
+
   return (
     <StepShell
       emoji="🛠️"
       title="Build"
       instruction="Follow the steps one by one. Ask a grown-up if you need help!"
-      say="Let's build it!"
+      say={cheerLine ?? say}
+      cheer={cheerLine !== null}
       bubbling={bubbling}
       headingRef={headingRef}
       back={{ label: "← Back to the picture", onClick: onBack }}
@@ -75,7 +99,9 @@ export function BuildStep({
 
           {/* Rubber stamp that thumps down when this step opens (no motion for reduced-motion users). */}
           <div className="flex justify-center py-2">
-            <p className="rubber-stamp">Project ready ✓</p>
+            <p ref={stamp} className="rubber-stamp">
+              Project ready ✓
+            </p>
           </div>
         </>
       ) : (
