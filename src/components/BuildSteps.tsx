@@ -1,12 +1,12 @@
-// The numbered build steps of an idea, each on its own little sticker.
+// The numbered build steps of an idea, written down the ruled notebook lines.
 export function BuildSteps({ steps }: { steps: string[] }) {
   return (
     <ol className="flex flex-col gap-3">
       {steps.map((step, i) => (
-        <li key={i} className="sticker flex items-start gap-3 rounded-2xl bg-white p-3">
+        <li key={i} className="flex items-start gap-3">
           <span
             aria-hidden="true"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[3px] border-ink bg-sunny text-lg font-bold"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-thick border-ink bg-sunny text-lg font-bold"
           >
             {i + 1}
           </span>

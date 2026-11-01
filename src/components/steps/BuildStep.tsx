@@ -2,8 +2,10 @@
 
 import type { RefObject } from "react";
 import { BuildSteps } from "@/components/BuildSteps";
+import { PaperClip, Pencil } from "@/components/Doodles";
 import { SafetyBox } from "@/components/SafetyBox";
 import { StepShell } from "@/components/StepShell";
+import { StickerCard } from "@/components/StickerCard";
 import type { Idea } from "@/lib/types";
 
 type BuildStepProps = {
@@ -32,31 +34,36 @@ export function BuildStep({ headingRef, bubbling, idea, canStartNew, onBack, onS
         disabled: !canStartNew,
         reason: "Wait for Alchemia to finish first",
       }}
-      nextColor="bg-sky"
     >
-      {idea && (
+      {idea ? (
         <>
-          {/* Small summary: title, time and cost */}
-          <section className="sticker flex flex-col gap-2 bg-sky-soft p-5">
-            <h3 className="flex items-center gap-2 text-2xl font-semibold">
-              <span aria-hidden="true">{idea.emoji}</span>
-              {idea.title}
-            </h3>
-            <p className="flex flex-wrap gap-x-4 gap-y-1 text-lg font-medium">
-              <span>⏱️ {idea.timeMinutes} min</span>
-              <span>🪙 {idea.costPhp === 0 ? "Free!" : `₱${idea.costPhp}`}</span>
-            </p>
-          </section>
+          {/* Small summary: title, time and cost, clipped on with a paper clip */}
+          <div className="relative">
+            <PaperClip className="absolute -top-4 right-6 z-10 h-14 w-6 rotate-6" />
+            <StickerCard tone="sky" emoji={idea.emoji} title={idea.title}>
+              <p className="flex flex-wrap gap-x-4 gap-y-1 text-lg font-medium">
+                <span>⏱️ {idea.timeMinutes} min</span>
+                <span>🪙 {idea.costPhp === 0 ? "Free!" : `₱${idea.costPhp}`}</span>
+              </p>
+            </StickerCard>
+          </div>
 
           {idea.buildSteps.length > 0 && (
-            <section>
-              <h3 className="mb-3 text-2xl font-semibold">How to make it</h3>
+            <StickerCard tone="paper" emoji="🛠️" title="How to make it">
               <BuildSteps steps={idea.buildSteps} />
-            </section>
+              <Pencil className="h-4 w-16 self-end -rotate-6" />
+            </StickerCard>
           )}
 
           <SafetyBox>{idea.safetyNote}</SafetyBox>
+
+          {/* Rubber stamp that thumps down when this step opens (no motion for reduced-motion users). */}
+          <div className="flex justify-center py-2">
+            <p className="rubber-stamp">Project ready ✓</p>
+          </div>
         </>
+      ) : (
+        <p className="empty-state">No idea picked yet. Go back to step 3 and pick one!</p>
       )}
     </StepShell>
   );

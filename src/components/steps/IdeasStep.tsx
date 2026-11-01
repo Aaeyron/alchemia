@@ -2,6 +2,7 @@
 
 import type { RefObject } from "react";
 import { BrewProgress } from "@/components/BrewProgress";
+import { Button } from "@/components/Button";
 import { ErrorBox } from "@/components/ErrorBox";
 import { IdeaCard } from "@/components/IdeaCard";
 import { StepShell } from "@/components/StepShell";
@@ -31,7 +32,7 @@ export function IdeasStep(props: IdeasStepProps) {
     <StepShell
       emoji="💡"
       title="Ideas"
-      instruction="Tap the idea you like best, then see what it could look like."
+      instruction="Tap the idea you like best, then see its concept picture."
       say="Pick your favorite!"
       bubbling={props.bubbling}
       headingRef={props.headingRef}
@@ -44,16 +45,11 @@ export function IdeasStep(props: IdeasStepProps) {
       }}
     >
       {props.outdated && !brewing && (
-        <div className="sticker flex flex-col gap-3 bg-sunny-soft p-4 text-base">
+        <div className="panel bg-sunny-soft text-base">
           <p className="font-medium">Your ingredients or goal changed. Brew again to refresh these ideas.</p>
-          <button
-            type="button"
-            onClick={props.onBrew}
-            disabled={!props.canBrew}
-            className="sticker pressable min-h-12 self-start bg-pink px-5 py-2 font-bold disabled:pointer-events-none disabled:opacity-50"
-          >
+          <Button variant="primary" onClick={props.onBrew} disabled={!props.canBrew} className="self-start">
             🧪 Brew again
-          </button>
+          </Button>
         </div>
       )}
 

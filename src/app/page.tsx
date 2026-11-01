@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/Button";
+import { TinyStars } from "@/components/Doodles";
 import { Stepper } from "@/components/Stepper";
 import type { TweakKind } from "@/components/TweakPanel";
 import { VoiceButton } from "@/components/VoiceButton";
@@ -461,7 +463,7 @@ export default function Home() {
       case "weird":
       case "easier": {
         if (!shownIdea || !brewedWith) return "Pick an idea first, then ask me to change it!";
-        if (currentStep !== 4) return "Open your picture first (step 4), then ask me to change it!";
+        if (currentStep !== 4) return "Open your concept picture first (step 4), then ask me to change it!";
         tweak(command.intent, command.intent === "missing" ? command.items : undefined);
         if (command.intent === "missing") return `OK, redesigning without ${command.items?.join(", ")}…`;
         return command.intent === "weird" ? "Making it weird…" : "Making it easier…";
@@ -551,25 +553,27 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 justify-center">
-      <main className="flex w-full max-w-2xl flex-col gap-6 px-4 pt-6 pb-8 sm:px-6 sm:py-10">
-        <header className="flex flex-col gap-5">
+      <main className="flex w-full max-w-2xl flex-col gap-section px-4 pt-6 pb-8 sm:px-6 sm:py-10">
+        <header className="flex flex-col gap-section">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight">Alchemia</h1>
-              <p className="sticker mt-2 inline-block -rotate-1 bg-sunny-soft px-3 py-1 text-base font-medium">
+              <h1 className="flex items-center gap-1 text-4xl font-bold tracking-tight">
+                Alchemia
+                <TinyStars className="h-6 w-9" />
+              </h1>
+              <p className="mt-2 inline-block -rotate-1 rounded-control border-thick border-ink bg-sunny-soft px-3 py-1 text-base font-medium shadow-sticker-sm">
                 Turn what you have into what you need.
               </p>
             </div>
             {/* How many ingredients are in the cauldron; tap to change them. */}
             {selectedIngredients.length > 0 && (
-              <button
-                type="button"
+              <Button
                 onClick={() => goToStep(1)}
                 aria-label={`${selectedIngredients.length} ingredients in the cauldron. Go to step 1.`}
-                className="sticker pressable min-h-11 shrink-0 bg-lavender px-3 py-1 text-lg font-bold"
+                className="shrink-0 bg-lavender-soft"
               >
                 🧪 {selectedIngredients.length}
-              </button>
+              </Button>
             )}
           </div>
 

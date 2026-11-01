@@ -1,27 +1,53 @@
-// A pastel "sticker" card. Pass `index` (0, 1, 2, ...) and each card gets its own
-// color and a slightly different tilt — made for the 3 idea cards.
+// The one panel / card look of the app: thick ink border, rounded corners, sticker shadow,
+// the same padding and spacing inside, and the same heading size. Styles: .panel in globals.css.
 
-const COLORS = ["bg-pink-soft", "bg-sky-soft", "bg-mint-soft", "bg-sunny-soft", "bg-lavender-soft"];
+// Background per tone. "paper" is the ruled notebook page (idea cards, build steps).
+const TONES = {
+  white: "bg-white",
+  paper: "paper",
+  pink: "bg-pink-soft",
+  sky: "bg-sky-soft",
+  mint: "bg-mint-soft",
+  sunny: "bg-sunny-soft",
+  lavender: "bg-lavender-soft",
+};
+export type CardTone = keyof typeof TONES;
+
 const TILTS = ["-rotate-2", "rotate-1", "-rotate-1", "rotate-2"];
 
 type StickerCardProps = {
-  index?: number;
+  tone?: CardTone;
+  index?: number; // set for a row of cards (the 3 ideas): each gets a slightly different tilt
   emoji?: string;
-  title: string;
+  title?: string;
+  headingLevel?: "h3" | "h4";
+  as?: "section" | "article" | "div";
+  className?: string;
   children: React.ReactNode;
 };
 
-export function StickerCard({ index = 0, emoji, title, children }: StickerCardProps) {
-  const color = COLORS[index % COLORS.length];
-  const tilt = TILTS[index % TILTS.length];
+export function StickerCard({
+  tone = "white",
+  index,
+  emoji,
+  title,
+  headingLevel = "h3",
+  as: Tag = "section",
+  className = "",
+  children,
+}: StickerCardProps) {
+  const Heading = headingLevel;
+  const tilt = index === undefined ? "" : `${TILTS[index % TILTS.length]} transition-transform hover:rotate-0`;
 
   return (
-    <article className={`sticker ${color} ${tilt} p-5 transition-transform hover:rotate-0`}>
-      <h3 className="mb-2 flex items-center gap-2 text-xl font-semibold">
-        {emoji && <span aria-hidden="true">{emoji}</span>}
-        {title}
-      </h3>
-      <div className="text-base leading-relaxed">{children}</div>
-    </article>
+    <Tag className={`panel ${TONES[tone]} ${tilt} ${className}`}>
+      {title && (
+        <Heading className="h-panel">
+          {emoji && <span aria-hidden="true">{emoji}</span>}
+          {title}
+        </Heading>
+      )}
+      {children}
+    </Tag>
   );
 }

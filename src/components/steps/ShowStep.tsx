@@ -3,10 +3,12 @@
 import type { ComponentProps, RefObject } from "react";
 import { AddIngredientForm } from "@/components/AddIngredientForm";
 import { BrewProgress } from "@/components/BrewProgress";
+import { ErrorBox } from "@/components/ErrorBox";
 import { IngredientChip } from "@/components/IngredientChip";
 import { PhotoBoxes } from "@/components/PhotoBoxes";
 import { PhotoStrip } from "@/components/PhotoStrip";
 import { StepShell } from "@/components/StepShell";
+import { StickerCard } from "@/components/StickerCard";
 import type { Ingredient, UploadedPhoto } from "@/lib/types";
 
 type ShowStepProps = {
@@ -42,7 +44,7 @@ export function ShowStep(props: ShowStepProps) {
     <StepShell
       emoji="📸"
       title="Show"
-      instruction="Snap a photo of stuff around you, then tap the things you want to use."
+      instruction="Snap a photo of things around you, then tap the ingredients you want to use."
       say="Show me what you've got!"
       bubbling={props.bubbling}
       headingRef={props.headingRef}
@@ -56,17 +58,17 @@ export function ShowStep(props: ShowStepProps) {
       {/* Upload box — the whole area is a label, so tapping anywhere opens the picker.
           A photo picked here starts a fresh session. */}
       <label
-        className={`sticker pressable flex min-h-44 flex-col items-center justify-center gap-2 bg-sky-soft p-6 text-center ${
-          props.uploadDisabled ? "pointer-events-none opacity-60" : ""
+        className={`panel pressable min-h-44 items-center justify-center bg-sky-soft text-center focus-within:outline-4 focus-within:outline-offset-3 focus-within:outline-focus ${
+          props.uploadDisabled ? "pointer-events-none opacity-55" : ""
         }`}
       >
         <span aria-hidden="true" className="text-4xl">📸</span>
-        <span className="text-2xl font-semibold">＋ Add something</span>
-        <span className="text-base">Snap a photo of stuff around you!</span>
+        <span className="h-panel">＋ Add a photo</span>
+        <span className="text-base">Snap a photo of things around you to find ingredients!</span>
         <input
           type="file"
           accept="image/*"
-          className="hidden"
+          className="sr-only"
           disabled={props.uploadDisabled}
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -106,17 +108,14 @@ export function ShowStep(props: ShowStepProps) {
 
       {loading && <BrewProgress kind="detect" photo={activePhoto?.dataUrl} />}
 
-      {props.error && (
-        <p role="alert" className="sticker bg-pink-soft p-4 text-base">
-          <strong>Oops! </strong>
-          {props.error}
-        </p>
-      )}
+      {props.error && <ErrorBox message={props.error} />}
 
       {photos.length > 0 && (
-        <section>
-          <h3 className="mb-1 text-2xl font-semibold">Pick your ingredients!</h3>
-          <p className="mb-4 text-base">Tap things to toss them in the cauldron.</p>
+        <StickerCard emoji="🧪" title="Pick your ingredients!">
+          <p className="-mt-2 text-base">Tap ingredients to toss them in the cauldron.</p>
+          {ingredients.length === 0 && !loading && (
+            <p className="empty-state">No ingredients yet. Try another photo, or type one below!</p>
+          )}
           <div className="flex flex-wrap gap-3">
             {ingredients.map((ingredient) => (
               <IngredientChip
@@ -129,8 +128,29 @@ export function ShowStep(props: ShowStepProps) {
             ))}
           </div>
           <AddIngredientForm onAdd={props.onAddTyped} full={props.ingredientsFull} />
-        </section>
+        </StickerCard>
       )}
+
+      {/* Which AI models do what (plain text, closed until tapped). */}
+      <details className="panel bg-white text-base">
+        <summary className="h-sub cursor-pointer py-2">How Alchemia works</summary>
+        <ul className="flex list-disc flex-col gap-1 pl-6">
+          <li>
+            <strong>Muse Spark</strong> finds the ingredients in your photos and writes the ideas.
+          </li>
+          <li>
+            <strong>SAM 3.1</strong> draws the tappable boxes around each ingredient.
+          </li>
+          <li>
+            <strong>Muse Image</strong> paints the concept picture.
+          </li>
+          <li>
+            <strong>Muse Voice Transcribe</strong> listens to you when you use 🎤.
+          </li>
+        </ul>
+        <p>Concept pictures are AI-generated and may differ from the real thing.</p>
+        <p className="hint">Built for the Meta Global AI Developer Hackathon.</p>
+      </details>
     </StepShell>
   );
 }

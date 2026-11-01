@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/Button";
 import { MAX_INGREDIENTS, MAX_NAME_LENGTH } from "@/lib/ingredients";
 
 type AddIngredientFormProps = {
   onAdd: (name: string) => void;
-  full: boolean; // the list already has MAX_INGREDIENTS items
+  full: boolean; // the list already has MAX_INGREDIENTS ingredients
 };
 
-// "➕ Add something": type an item you have that isn't in the photos, then press Enter.
+// "➕ Add an ingredient": type something you have that isn't in the photos, then press Enter.
 export function AddIngredientForm({ onAdd, full }: AddIngredientFormProps) {
   const [text, setText] = useState("");
 
   return (
     <form
-      className="mt-5 flex flex-col gap-2"
+      className="flex flex-col gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         const name = text.trim();
@@ -23,8 +24,8 @@ export function AddIngredientForm({ onAdd, full }: AddIngredientFormProps) {
         setText("");
       }}
     >
-      <label htmlFor="add-ingredient" className="text-lg font-semibold">
-        ➕ Add something
+      <label htmlFor="add-ingredient" className="h-sub">
+        ➕ Add an ingredient
       </label>
       <div className="flex gap-2">
         <input
@@ -35,17 +36,13 @@ export function AddIngredientForm({ onAdd, full }: AddIngredientFormProps) {
           placeholder="e.g. tape"
           maxLength={MAX_NAME_LENGTH}
           disabled={full}
-          className="sticker min-h-12 min-w-0 flex-1 rounded-2xl bg-white px-4 py-2 text-base placeholder:text-ink/60 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-sky disabled:opacity-50"
+          className="field flex-1"
         />
-        <button
-          type="submit"
-          disabled={full || text.trim() === ""}
-          className="sticker pressable min-h-12 bg-mint px-5 font-semibold disabled:pointer-events-none disabled:opacity-50"
-        >
+        <Button type="submit" disabled={full || text.trim() === ""}>
           Add
-        </button>
+        </Button>
       </div>
-      {full && <p className="text-sm">That&apos;s {MAX_INGREDIENTS} things, the cauldron is full!</p>}
+      {full && <p className="hint">That&apos;s {MAX_INGREDIENTS} ingredients. The cauldron is full!</p>}
     </form>
   );
 }

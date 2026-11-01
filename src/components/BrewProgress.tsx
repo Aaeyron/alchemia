@@ -17,10 +17,10 @@ const MESSAGES: Record<ProgressKind, string[]> = {
     "Bubbling up ideas…",
     "Stirring in your ingredients…",
     "Adding a pinch of creativity…",
-    "Checking the rules (budget, time, materials)…",
+    "Checking the rules (budget, time, ingredients)…",
     "Picking the best three…",
   ],
-  paint: ["Mixing the colors…", "Sketching your invention…", "Keeping your real colors…", "Adding the final touches…"],
+  paint: ["Mixing the colors…", "Sketching your concept picture…", "Keeping your real colors…", "Adding the final touches…"],
   tweak: ["Waving the wand…", "Rearranging the pieces…", "Making it just right…", "Double-checking the rules…"],
   voice: ["Writing it down…", "Thinking about what you said…", "Almost there…"],
 };
@@ -91,7 +91,7 @@ export function BrewProgress({ kind, compact = false, emojis = [], photo, hideTe
         {messages[index]}
       </p>
       {SLOW_HINTS.slice(0, slowness).map((hint) => (
-        <p key={hint} className="text-sm">
+        <p key={hint} className="hint">
           {hint}
         </p>
       ))}
@@ -114,7 +114,7 @@ export function BrewProgress({ kind, compact = false, emojis = [], photo, hideTe
   }
 
   return (
-    <div className={`sticker flex flex-col items-center gap-3 p-5 ${PANEL_COLORS[kind]}`}>
+    <div className={`panel items-center ${PANEL_COLORS[kind]}`}>
       {kind === "brew" && <BrewScene emojis={emojis} />}
       {kind === "paint" && <PaintScene />}
       {kind === "tweak" && <TweakScene />}
@@ -202,7 +202,7 @@ const DABS = [
 function PaintScene() {
   return (
     <div aria-hidden="true" className="sticker w-48 -rotate-1 bg-white p-3 pb-2">
-      <div className="relative aspect-square overflow-hidden rounded-xl bg-sky-soft">
+      <div className="relative aspect-square overflow-hidden rounded-control bg-sky-soft">
         {DABS.map((d, i) => (
           <span
             key={i}
@@ -212,7 +212,7 @@ function PaintScene() {
         ))}
         <span className="wip wip-sweep absolute left-1 top-1 text-3xl">🖌️</span>
       </div>
-      <p className="mt-1 text-center font-semibold">After ✨</p>
+      <p className="caption mt-1 text-center">After ✨</p>
     </div>
   );
 }
@@ -221,7 +221,7 @@ function PaintScene() {
 function TweakScene() {
   return (
     <div aria-hidden="true" className="relative h-36 w-56">
-      <div className="sticker absolute inset-6 flex rotate-1 flex-col gap-2 bg-sunny-soft p-3">
+      <div className="sticker paper absolute inset-6 flex rotate-1 flex-col gap-2 p-3 pl-10">
         <span className="h-2.5 w-3/4 rounded-full bg-ink/25" />
         <span className="h-2.5 w-1/2 rounded-full bg-ink/25" />
         <span className="h-2.5 w-2/3 rounded-full bg-ink/25" />

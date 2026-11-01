@@ -1,10 +1,15 @@
 @import "tailwindcss";
 
-/* ---------- Palette ----------
-   Each color becomes a Tailwind class, e.g. bg-pink, bg-sky-soft, text-ink. */
+/* ---------- Design tokens ----------
+   Every value the UI repeats lives here. Each one also becomes a Tailwind class,
+   e.g. --color-pink -> bg-pink, --radius-card -> rounded-card, --shadow-sticker -> shadow-sticker,
+   --text-step -> text-step, --font-hand -> font-hand. */
 @theme {
-  --color-ink: #3b2f4a; /* body text: dark purple-gray */
+  /* Text */
+  --color-ink: #3b2f4a; /* body text: dark purple-gray (≥ 8:1 on every pastel below) */
+  --color-ink-soft: #5f5270; /* quieter text: ≥ 4.5:1 on white, paper and the -soft pastels */
 
+  /* Pastel palette */
   --color-pink: #ff8fb8;
   --color-pink-soft: #ffe0ec;
   --color-sky: #7cc6fe;
@@ -15,11 +20,62 @@
   --color-mint-soft: #d9f7ea;
   --color-lavender: #b9a3f5;
   --color-lavender-soft: #ece5ff;
+
+  /* School days: notebook paper, stamp inks, pencil */
+  --color-paper: #fffdf6;
+  --color-rule: rgb(98 150 222 / 0.22); /* faint blue ruled lines */
+  --color-margin: rgb(232 96 96 / 0.45); /* thin red margin line */
+  --color-stamp: #2f5fa8; /* blue stamp ink: 6:1 on paper */
+  --color-fail: #b42318; /* red ink for failing checks: 5.5:1 on fail-soft */
+  --color-fail-soft: #fde8e6;
+  --color-graphite: #5b5466; /* pencil marks */
+  --color-focus: #1f5fc4; /* keyboard focus ring: ≥ 3:1 on every background */
+
+  /* Radii */
+  --radius-card: 1.5rem; /* panels and cards */
+  --radius-control: 1rem; /* text inputs, small stickers */
+
+  /* Shadows: chunky offset "sticker" shadows, no blur */
+  --shadow-sticker-sm: 3px 3px 0 var(--color-ink);
+  --shadow-sticker: 5px 5px 0 var(--color-ink);
+  --shadow-sticker-lg: 6px 6px 0 var(--color-ink);
+  --shadow-pressed: 1px 1px 0 var(--color-ink);
+
+  /* Text sizes (on top of Tailwind's text-sm … text-4xl) */
+  --text-step: 2.5rem; /* step headings, in the handwriting font */
+  --text-step--line-height: 1.1;
+  --text-panel: 1.5rem; /* panel headings */
+  --text-panel--line-height: 1.25;
 }
 
-/* Fredoka (loaded in layout.tsx) is the default font everywhere. */
+/* Fonts (loaded in layout.tsx): Fredoka for everything, Patrick Hand only for accents. */
 @theme inline {
   --font-sans: var(--font-fredoka), ui-rounded, system-ui, sans-serif;
+  --font-hand: var(--font-patrick-hand), "Comic Sans MS", cursive;
+}
+
+/* Border widths and spacing that aren't colors/radii/shadows. */
+:root {
+  --border-thin: 2px; /* small stickers, badges */
+  --border-thick: 3px; /* panels, buttons, chips */
+  --border-heavy: 4px; /* safety box, rubber stamp */
+
+  --space-section: 1.5rem; /* between sections of a step */
+  --space-panel: 1.25rem; /* padding inside a panel */
+  --space-inner: 1rem; /* between things inside a panel */
+}
+
+@utility border-thin {
+  border-width: var(--border-thin);
+}
+@utility border-thick {
+  border-width: var(--border-thick);
+}
+@utility gap-section {
+  gap: var(--space-section);
+}
+@utility gap-inner {
+  gap: var(--space-inner);
 }
 
 /* Keep focused or scrolled-to things clear of the sticky action bar on phones. */
@@ -30,6 +86,12 @@ html {
 body {
   color: var(--color-ink);
   background-color: #efe8ff; /* shown only until the sky layer paints */
+}
+
+/* One focus ring for everything you can reach with the keyboard. */
+:focus-visible {
+  outline: 4px solid var(--color-focus);
+  outline-offset: 3px;
 }
 
 /* ---------- "Bubbly Sky" background (see BubbleBackground.tsx) ---------- */
@@ -75,31 +137,172 @@ body {
 @layer components {
   /* Thick rounded border + chunky offset "sticker" shadow (no blur). */
   .sticker {
-    border: 3px solid var(--color-ink);
-    border-radius: 1.5rem;
-    box-shadow: 5px 5px 0 var(--color-ink);
+    border: var(--border-thick) solid var(--color-ink);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sticker);
   }
 
-  /* Anything clickable: squishes down when pressed. */
+  /* Every panel and card: the sticker look plus the same padding and spacing inside. */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-inner);
+    padding: var(--space-panel);
+    border: var(--border-thick) solid var(--color-ink);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sticker);
+  }
+
+  /* Nothing here yet: a dashed outline with a short hint. */
+  .empty-state {
+    padding: var(--space-inner);
+    border: var(--border-thick) dashed var(--color-ink-soft);
+    border-radius: var(--radius-control);
+    background: rgb(255 255 255 / 0.7);
+    font-size: 1rem;
+  }
+
+  /* Headings: step (h2, handwriting) > panel (h3) > sub-heading (h4). */
+  .h-step {
+    font-family: var(--font-hand);
+    font-size: var(--text-step);
+    line-height: var(--text-step--line-height);
+  }
+  .h-panel {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--text-panel);
+    line-height: var(--text-panel--line-height);
+    font-weight: 600;
+  }
+  .h-sub {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  /* Short notes under pictures and the mascot's speech: the handwriting accent. */
+  .caption {
+    font-family: var(--font-hand);
+    font-size: 1.25rem;
+    line-height: 1.3;
+  }
+
+  /* One-line explanation, e.g. why a button is disabled. */
+  .hint {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--color-ink-soft);
+  }
+
+  /* Text inputs */
+  .field {
+    min-height: 3rem;
+    min-width: 0;
+    padding: 0.5rem 1rem;
+    border: var(--border-thick) solid var(--color-ink);
+    border-radius: var(--radius-control);
+    box-shadow: var(--shadow-sticker-sm);
+    background: #fff;
+    font-size: 1.125rem;
+  }
+  .field::placeholder {
+    color: var(--color-ink-soft);
+  }
+  .field:disabled {
+    opacity: 0.55;
+  }
+
+  /* Anything clickable that isn't a Button (chips, the upload box): squishes down when pressed. */
   .pressable {
     cursor: pointer;
     transition: transform 120ms ease, box-shadow 120ms ease;
   }
   .pressable:hover {
     transform: translate(-1px, -1px);
-    box-shadow: 6px 6px 0 var(--color-ink);
+    box-shadow: var(--shadow-sticker-lg);
   }
   .pressable:active {
     transform: translate(4px, 4px);
-    box-shadow: 1px 1px 0 var(--color-ink);
+    box-shadow: var(--shadow-pressed);
   }
+
+  /* ---------- Buttons (Button.tsx; also used on file-picker labels) ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem; /* 44px tap target */
+    padding: 0.5rem 1.25rem;
+    border: var(--border-thick) solid var(--color-ink);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sticker);
+    font-size: 1.125rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .btn:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-sticker-lg);
+  }
+  .btn:active {
+    transform: translate(4px, 4px);
+    box-shadow: var(--shadow-pressed);
+  }
+  /* Disabled: faded, flat and dashed, so it doesn't look pressable. */
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.55;
+    border-style: dashed;
+    box-shadow: none;
+    transform: none;
+    pointer-events: none;
+  }
+  .btn-large {
+    min-height: 3.5rem; /* the main action: 56px */
+    padding: 0.75rem 1.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .btn-icon {
+    min-height: 1.75rem;
+    width: 1.75rem;
+    padding: 0;
+    border-width: var(--border-thin);
+    border-radius: 9999px;
+    box-shadow: none;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .btn-icon:hover,
+  .btn-icon:active {
+    box-shadow: none;
+  }
+  .btn-primary { background: var(--color-sunny); }
+  .btn-secondary { background: #fff; }
+  .btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+  .btn-ghost:hover,
+  .btn-ghost:active {
+    box-shadow: none;
+  }
+  .btn-danger { background: var(--color-pink); }
 
   /* High-contrast safety callout: bright yellow, near-black text, hazard stripes on top. */
   .safety-box {
     position: relative;
     overflow: hidden;
     padding: 1.75rem 1rem 1rem;
-    border: 4px solid #1d1424;
+    border: var(--border-heavy) solid #1d1424;
     border-radius: 1.25rem;
     background: #ffe14d;
     color: #1d1424;
@@ -111,6 +314,86 @@ body {
     inset: 0 0 auto 0;
     height: 12px;
     background: repeating-linear-gradient(-45deg, #1d1424 0 10px, #ffe14d 10px 20px);
+  }
+
+  /* ---------- School days ---------- */
+
+  /* Notebook paper: solid paper color, faint blue ruled lines, a thin red margin line,
+     and hole-punch dots down the left edge. Text sits right of the margin. */
+  .paper {
+    padding-left: 3.25rem;
+    background-color: var(--color-paper);
+    background-image:
+      radial-gradient(circle at 1.1rem 2rem, #e6ebf5 0 0.42rem, var(--color-ink-soft) 0.42rem 0.5rem, transparent 0.55rem),
+      linear-gradient(to right, transparent 2.4rem, var(--color-margin) 2.4rem, var(--color-margin) calc(2.4rem + 2px), transparent calc(2.4rem + 2px)),
+      repeating-linear-gradient(to bottom, transparent 0 calc(1.75rem - 1px), var(--color-rule) calc(1.75rem - 1px) 1.75rem);
+    background-size: 100% 6rem, auto, auto;
+    background-repeat: repeat-y, no-repeat, repeat;
+  }
+
+  /* A strip of washi tape: see-through pastel with soft stripes and torn-looking ends.
+     Set --tape to a color as "R G B" (the tape-* classes do that). */
+  .washi {
+    position: absolute;
+    z-index: 1;
+    width: 5.5rem;
+    height: 1.6rem;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      -45deg,
+      rgb(var(--tape) / 0.75) 0 6px,
+      rgb(var(--tape) / 0.5) 6px 12px
+    );
+    clip-path: polygon(3% 0, 97% 0, 100% 20%, 96% 45%, 100% 70%, 97% 100%, 3% 100%, 0 75%, 4% 50%, 0 25%);
+  }
+  .tape-pink { --tape: 255 143 184; }
+  .tape-sky { --tape: 124 198 254; }
+  .tape-mint { --tape: 111 220 180; }
+  .tape-sunny { --tape: 255 210 63; }
+  .tape-lavender { --tape: 185 163 245; }
+
+  /* Ink stamp badge for a passed check: rounded outline, blue ink, a little crooked. */
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.625rem;
+    border: var(--border-thin) solid var(--color-stamp);
+    border-radius: 0.5rem;
+    box-shadow: inset 0 0 0 1px rgb(47 95 168 / 0.35);
+    background: var(--color-paper);
+    color: var(--color-stamp);
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  /* A failed check: red ink, dashed, on pink, and straight, so it clearly stands apart. */
+  .stamp-fail {
+    border-style: dashed;
+    border-color: var(--color-fail);
+    box-shadow: none;
+    background: var(--color-fail-soft);
+    color: var(--color-fail);
+  }
+
+  /* The big "PROJECT READY ✓" rubber stamp at the end of step 5. */
+  .rubber-stamp {
+    display: inline-block;
+    padding: 0.5rem 1.25rem;
+    border: var(--border-heavy) solid var(--color-stamp);
+    border-radius: 0.75rem;
+    box-shadow:
+      inset 0 0 0 3px var(--color-paper),
+      inset 0 0 0 5px var(--color-stamp);
+    background: rgb(255 253 246 / 0.85);
+    color: var(--color-stamp);
+    font-size: clamp(1.25rem, 6vw, 1.75rem); /* fits a 375px phone, rotation included */
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transform: rotate(-7deg);
+    animation: stamp-down 450ms ease-out both;
   }
 }
 
@@ -146,6 +429,12 @@ body {
   40% { transform: scale(1.15); }
   70% { transform: scale(0.95); }
   100% { transform: scale(1); }
+}
+/* The rubber stamp comes down from above, squashes a little, and settles crooked. */
+@keyframes stamp-down {
+  0% { opacity: 0; transform: scale(1.8) rotate(-14deg); }
+  60% { opacity: 1; transform: scale(0.94) rotate(-6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-7deg); }
 }
 
 /* Mascot eyes shrink from their own center when blinking. */
@@ -293,7 +582,8 @@ body {
 }
 
 /* Users who ask for less motion get a calm, still UI.
-   Bubbles and sparkles stay visible at their resting spots, just not moving. */
+   Bubbles and sparkles stay visible at their resting spots, just not moving.
+   The rubber stamp is simply there, already crooked. */
 @media (prefers-reduced-motion: reduce) {
   .bubble,
   .sparkle,
@@ -303,6 +593,7 @@ body {
   .pop,
   .pop-in,
   .step-in,
+  .rubber-stamp,
   .wip-message {
     animation: none;
   }
@@ -312,7 +603,10 @@ body {
   }
   .pressable,
   .pressable:hover,
-  .pressable:active {
+  .pressable:active,
+  .btn,
+  .btn:hover,
+  .btn:active {
     transition: none;
   }
 }

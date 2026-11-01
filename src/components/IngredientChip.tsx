@@ -1,3 +1,4 @@
+import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { emojiFor } from "@/lib/emoji";
 import type { Ingredient } from "@/lib/types";
@@ -22,14 +23,15 @@ export function IngredientChip({ ingredient, selected, onToggle, onRemove }: Ing
         badge={ingredient.source === "typed" ? "✍️" : undefined}
       />
       {/* The ✕ looks small, but the invisible ::after area makes it a 44px tap target. */}
-      <button
-        type="button"
+      <Button
+        variant="danger"
+        size="icon"
         onClick={onRemove}
         aria-label={`Remove ${ingredient.name}`}
-        className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border-2 border-ink bg-white text-xs font-bold after:absolute after:-inset-2 after:content-['']"
+        className="absolute -top-2 -right-2 after:absolute after:-inset-2 after:content-['']"
       >
         ✕
-      </button>
+      </Button>
     </span>
   );
 }

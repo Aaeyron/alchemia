@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClasses } from "@/components/Button";
 import type { UploadedPhoto } from "@/lib/types";
 
 type PhotoStripProps = {
@@ -22,7 +23,7 @@ export function PhotoStrip({ photos, activeId, onSelect, onAddPhoto, canAdd, bus
           onClick={() => onSelect(photo.id)}
           aria-pressed={photo.id === activeId}
           aria-label={`Show photo ${i + 1}`}
-          className={`h-16 w-16 overflow-hidden rounded-xl border-[3px] border-ink bg-white ${
+          className={`h-16 w-16 overflow-hidden rounded-control border-thick border-ink bg-white ${
             photo.id === activeId ? "outline-4 outline-offset-2 outline-pink" : ""
           }`}
         >
@@ -33,16 +34,13 @@ export function PhotoStrip({ photos, activeId, onSelect, onAddPhoto, canAdd, bus
       ))}
 
       {canAdd && (
-        <label
-          className={`sticker pressable flex min-h-12 items-center gap-2 bg-white px-4 py-2 font-semibold ${
-            busy ? "pointer-events-none opacity-60" : ""
-          }`}
-        >
-          📷 Add another photo
+        // A label (so tapping it opens the file picker) that looks like a secondary button.
+        <label aria-disabled={busy} className={`${buttonClasses("secondary")} focus-within:outline-4 focus-within:outline-focus`}>
+          📸 Add another photo
           <input
             type="file"
             accept="image/*"
-            className="hidden"
+            className="sr-only"
             disabled={busy}
             onChange={(event) => {
               const file = event.target.files?.[0];

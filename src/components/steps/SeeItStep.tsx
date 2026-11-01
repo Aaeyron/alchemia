@@ -5,6 +5,7 @@ import { BrewProgress } from "@/components/BrewProgress";
 import { ErrorBox } from "@/components/ErrorBox";
 import { ResultPanel } from "@/components/ResultPanel";
 import { StepShell } from "@/components/StepShell";
+import { StickerCard } from "@/components/StickerCard";
 import { TweakPanel, type TweakKind } from "@/components/TweakPanel";
 import type { Idea, MaterialInfo } from "@/lib/types";
 
@@ -60,7 +61,7 @@ export function SeeItStep({
     <StepShell
       emoji="✨"
       title="See it"
-      instruction="Here's what your invention could look like. Tweak it until you love it!"
+      instruction="Here's the concept picture of your idea. Tweak it until you love it!"
       say="Ta-da! Want to change anything?"
       bubbling={bubbling}
       headingRef={headingRef}
@@ -70,10 +71,14 @@ export function SeeItStep({
         disabled: working,
         reason: "Wait for Alchemia to finish first",
       }}
-      next={{ label: "🛠️ How do I build it?", onClick: onBuild, disabled: idea === null }}
-      nextColor="bg-mint"
+      next={{
+        label: "🛠️ How do I build it?",
+        onClick: onBuild,
+        disabled: idea === null,
+        reason: "Pick an idea first",
+      }}
     >
-      <div ref={resultRef} className="flex scroll-mt-6 flex-col gap-6">
+      <div ref={resultRef} className="flex scroll-mt-6 flex-col gap-section">
         {idea && conceptImage ? (
           <>
             <ResultPanel
@@ -97,14 +102,13 @@ export function SeeItStep({
               voice={voice}
             />
           </>
+        ) : idea ? (
+          // First concept picture still on its way (or it failed): show which idea it is.
+          <StickerCard tone="sky" emoji={idea.emoji} title={idea.title}>
+            <p className="text-base">{idea.description}</p>
+          </StickerCard>
         ) : (
-          idea && (
-            // First picture still on its way (or it failed): show which idea it is.
-            <p className="sticker flex items-center gap-2 bg-sky-soft p-4 text-2xl font-semibold">
-              <span aria-hidden="true">{idea.emoji}</span>
-              {idea.title}
-            </p>
-          )
+          <p className="empty-state">No idea picked yet. Go back to step 3 and pick one!</p>
         )}
 
         {/* First picture: the painting animation. (Later pictures show it inside the AFTER frame.) */}

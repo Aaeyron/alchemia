@@ -43,26 +43,25 @@ export function NeedStep(props: NeedStepProps) {
         disabled: !props.canBrew,
         reason: props.brewBlockedReason,
       }}
-      nextColor="bg-pink"
     >
       {/* Read-only summary of the cauldron (change it on step 1). */}
       <section className="sticker overflow-hidden bg-lavender-soft">
         {/* Chunky rim across the top of the cauldron box */}
-        <div className="flex items-center justify-between border-b-[3px] border-ink bg-lavender px-5 py-3">
-          <h3 className="text-2xl font-semibold">🧪 Your cauldron</h3>
-          <span className="rounded-full border-[3px] border-ink bg-white px-3 text-lg font-semibold">
+        <div className="flex items-center justify-between border-b-3 border-ink bg-lavender px-5 py-3">
+          <h3 className="h-panel">🧪 Your cauldron</h3>
+          <span className="rounded-full border-thick border-ink bg-white px-3 text-lg font-semibold">
             {selectedIngredients.length}
           </span>
         </div>
         <div className="p-5">
           {selectedIngredients.length === 0 ? (
-            <p className="text-base">Empty for now — go back and tap an ingredient to add it!</p>
+            <p className="empty-state">Your cauldron is empty. Go back and tap an ingredient to add it!</p>
           ) : (
             <ul className="flex flex-wrap gap-3">
               {selectedIngredients.map((ingredient, n) => (
                 <li
                   key={ingredient.id}
-                  className={`sticker flex items-center gap-1.5 rounded-2xl bg-white px-3 py-1.5 text-base ${
+                  className={`flex items-center gap-1.5 rounded-control border-thick border-ink bg-white px-3 py-1.5 text-base shadow-sticker-sm ${
                     n % 2 === 0 ? "-rotate-2" : "rotate-2"
                   }`}
                 >

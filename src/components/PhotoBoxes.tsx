@@ -26,10 +26,13 @@ export function PhotoBoxes({ photo, boxes, selected, onToggle, flash }: PhotoBox
   const ordered = [...boxes].sort((a, b) => b.box.w * b.box.h - a.box.w * a.box.h);
 
   return (
-    <div className="sticker mx-auto w-full max-w-md rotate-1 bg-white p-3 pb-4">
+    <div className="sticker relative mx-auto mt-3 w-full max-w-md rotate-1 bg-white p-3 pb-4">
+      {/* Two strips of washi tape hold the photo onto the page. */}
+      <span aria-hidden="true" className="washi tape-sunny -top-3 -left-2 -rotate-12" />
+      <span aria-hidden="true" className="washi tape-lavender -top-3 -right-2 rotate-12" />
       {/* This wrapper is exactly the size of the picture, so the % positions line up with it.
           overflow-hidden keeps boxes and labels inside the photo. */}
-      <div className="relative mx-auto w-fit overflow-hidden rounded-xl">
+      <div className="relative mx-auto w-fit overflow-hidden rounded-control">
         {/* A plain <img> is fine here: the source is a local data URL. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photo} alt="Your uploaded photo" className="block max-h-80 max-w-full" />
@@ -54,11 +57,11 @@ export function PhotoBoxes({ photo, boxes, selected, onToggle, flash }: PhotoBox
                 height: `${box.h * 100}%`,
               }}
               className={`absolute cursor-pointer rounded-lg ${color.fill} ${
-                isSelected ? "border-4 border-ink" : `border-[3px] ${color.border}`
-              } ${flashCount > 0 ? "pop" : ""} focus-visible:outline-4 focus-visible:outline-ink`}
+                isSelected ? "border-4 border-ink" : `border-thick ${color.border}`
+              } ${flashCount > 0 ? "pop" : ""}`}
             >
               <span
-                className={`absolute left-1 top-1 whitespace-nowrap rounded-full border-2 border-ink px-2 text-xs font-semibold text-ink ${color.label}`}
+                className={`absolute top-1 left-1 rounded-full border-thin border-ink px-2 text-xs font-semibold whitespace-nowrap text-ink ${color.label}`}
               >
                 {isSelected && "✓ "}
                 {emojiFor(box.name)} {box.name}

@@ -8,10 +8,10 @@ type ChipProps = {
   selected: boolean;
   onToggle: () => void;
   title?: string;
-  badge?: string; // optional small extra emoji after the label, e.g. ✍️ for typed items
+  badge?: string; // optional small extra emoji after the label, e.g. ✍️ for typed ingredients
 };
 
-// A chunky, tappable ingredient chip. It does a little "pop" bounce when tapped.
+// A chunky, tappable chip (ingredients, budget, time). It does a little "pop" bounce when tapped.
 export function Chip({ emoji, label, selected, onToggle, title, badge }: ChipProps) {
   const [popping, setPopping] = useState(false);
 
@@ -27,7 +27,7 @@ export function Chip({ emoji, label, selected, onToggle, title, badge }: ChipPro
       onAnimationEnd={() => setPopping(false)}
       aria-pressed={selected}
       title={title}
-      className={`sticker pressable flex min-h-12 items-center gap-2 rounded-full px-4 py-2 text-base font-medium ${
+      className={`pressable flex min-h-12 items-center gap-2 rounded-full border-thick border-ink px-4 py-2 text-base font-medium shadow-sticker ${
         selected ? "bg-sunny" : "bg-white"
       } ${popping ? "pop" : ""}`}
     >

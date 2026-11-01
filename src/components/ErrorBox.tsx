@@ -1,4 +1,6 @@
-// The "Oops!" message box, with an optional "Try again" button.
+import { Button } from "@/components/Button";
+
+// The "Oops!" message box (used for every error), with an optional "Try again" button.
 
 type ErrorBoxProps = {
   message: string;
@@ -7,19 +9,15 @@ type ErrorBoxProps = {
 
 export function ErrorBox({ message, onRetry }: ErrorBoxProps) {
   return (
-    <div role="alert" className="sticker flex flex-col gap-3 bg-pink-soft p-4 text-base">
+    <div role="alert" className="panel bg-pink-soft text-base">
       <p>
         <strong>Oops! </strong>
         {message}
       </p>
       {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="sticker pressable min-h-12 self-start bg-white px-5 py-2 font-semibold"
-        >
+        <Button onClick={onRetry} className="self-start">
           🔁 Try again
-        </button>
+        </Button>
       )}
     </div>
   );

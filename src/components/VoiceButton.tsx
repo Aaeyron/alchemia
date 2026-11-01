@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BrewProgress } from "@/components/BrewProgress";
+import { Button } from "@/components/Button";
 import { FriendlyError, sendToApi } from "@/lib/api";
 import { recordingToWav } from "@/lib/wav";
 
@@ -137,17 +138,16 @@ export function VoiceButton({ disabled, keywords, onActiveChange, onText }: Voic
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
+      {/* Secondary while idle; "danger" (pink, pulsing) while recording, since tapping stops it. */}
+      <Button
+        variant={listening ? "danger" : "secondary"}
         onClick={listening ? stop : start}
         disabled={buttonDisabled}
         aria-pressed={listening}
-        className={`sticker pressable min-h-14 px-5 py-2 text-lg font-bold disabled:pointer-events-none disabled:opacity-50 ${
-          listening ? "bg-pink motion-safe:animate-pulse" : "bg-lavender"
-        }`}
+        className={listening ? "motion-safe:animate-pulse" : ""}
       >
         {LABELS[phase]}
-      </button>
+      </Button>
 
       {/* Little sound wave + dots while listening, writing or thinking (the button keeps its text). */}
       {phase !== "idle" && (
