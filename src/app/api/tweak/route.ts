@@ -1,6 +1,8 @@
 import {
   COLOR_RULE,
+  IDEA_JSON_EXAMPLE,
   askForIdeas,
+  recipeRules,
   isIngredient,
   isStringList,
   listIngredients,
@@ -113,18 +115,17 @@ Rules:
 - In materialsUsed, write each ingredient name exactly as it appears in the list
   (without the color in brackets).
 - costPhp must be at most ${req.budgetPhp}. timeMinutes must be at most ${req.timeMinutes}.
+${recipeRules(req.useEverything)}
 ${COLOR_RULE}
 - Write in simple, friendly English a student can follow.
 - safetyNote: if the idea involves sharp tools, heat, electricity or chemicals, give a
   short safety tip. Otherwise write "Looks safe!".
 
 Return JSON only — no explanation, no markdown — as an array with exactly 1 object:
-[{"title": "short name", "emoji": "one emoji", "description": "one sentence",
-  "materialsUsed": ["..."], "timeMinutes": 10, "costPhp": 0, "difficulty": 1,
-  "safetyNote": "...", "buildSteps": ["step 1", "step 2"]}]`;
+[${IDEA_JSON_EXAMPLE}]`;
 }
 
-// POST /api/tweak — body: { idea, ingredients, goal, budgetPhp, timeMinutes, tweak, missing?, colors? }
+// POST /api/tweak — body: { idea, ingredients, goal, budgetPhp, timeMinutes, tweak, missing?, colors?, useEverything? }
 export async function POST(request: Request) {
   const limited = checkRateLimit(request, "tweak");
   if (limited) return limited;
@@ -142,7 +143,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // "I don't have…": drop the missing items, so both the prompt and the materials check use the shorter list.
+  // "I don't have…": drop the missing items. The shorter list is the cauldron for this redesign:
+  // the prompt, the materials check and the "uses N of M" count all use it.
   if (req.tweak === "missing") {
     const missing = req.missing;
     req = { ...req, ingredients: req.ingredients.filter((ingredient) => !isIngredient(ingredient, missing)) };

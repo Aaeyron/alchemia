@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/Button";
 import { TinyStars } from "@/components/Doodles";
+import type { PictureCheckState } from "@/components/PictureCheckNote";
 import { Stepper } from "@/components/Stepper";
 import type { TweakKind } from "@/components/TweakPanel";
 import { VoiceButton } from "@/components/VoiceButton";
@@ -24,7 +25,7 @@ import {
   newId,
   sameName,
 } from "@/lib/ingredients";
-import type { Idea, Ingredient, PhotoBox, UploadedPhoto, VoiceIntent } from "@/lib/types";
+import type { Idea, Ingredient, PhotoBox, PictureCheck, UploadedPhoto, VoiceIntent } from "@/lib/types";
 
 // Same shape the /api/detect route returns.
 type DetectedObject = {
@@ -40,6 +41,7 @@ type BrewRequest = {
   budgetPhp: number;
   timeMinutes: number;
   colors: Record<string, string>; // known color per ingredient name, for the idea prompts
+  useEverything: boolean; // ideas must use every ingredient (tweaks reuse this too)
 };
 
 // One saved version of the result, for "Back to previous version".
@@ -47,11 +49,14 @@ type Snapshot = {
   tweakedIdea: Idea | null; // null = the original chosen idea
   image: string | null;
   ingredients: string[] | null; // null = the brewed ingredients
+  check: PictureCheckState | null; // the picture check of that version
 };
 
 const MAX_PHOTOS = 3;
 const MAX_SIZE = 1024; // longest side, in pixels
+const CHECK_SIZE = 768; // longest side of the concept picture sent to /api/check-picture
 const JPEG_QUALITY = 0.8;
+const MAX_REPAINTS = 2; // "Repaint" after a picture check, per idea
 
 // Read a File into a data URL ("data:image/...;base64,...").
 function readAsDataUrl(file: File): Promise<string> {
@@ -63,13 +68,14 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-// Shrink an image so its longest side is at most MAX_SIZE, and re-encode as JPEG.
+// Shrink an image so its longest side is at most `maxSize`, and re-encode as JPEG.
 // This keeps the request to the server (and the model) small and fast.
-function downscale(dataUrl: string): Promise<string> {
+function downscale(dataUrl: string, maxSize = MAX_SIZE): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous"; // lets the canvas export a picture that came from a URL
     img.onload = () => {
-      const scale = Math.min(1, MAX_SIZE / Math.max(img.width, img.height));
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
@@ -115,6 +121,7 @@ export default function Home() {
   const [goal, setGoal] = useState("");
   const [budget, setBudget] = useState(0);
   const [time, setTime] = useState(10);
+  const [useEverything, setUseEverything] = useState(false);
   const [brewing, setBrewing] = useState(false);
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [brewedWith, setBrewedWith] = useState<BrewRequest | null>(null);
@@ -124,6 +131,9 @@ export default function Home() {
   const [visualizing, setVisualizing] = useState(false);
   const [conceptImage, setConceptImage] = useState<string | null>(null);
   const [visualizeError, setVisualizeError] = useState<string | null>(null);
+  // Background check of the concept picture on screen, and how many repaints this idea had.
+  const [pictureCheck, setPictureCheck] = useState<PictureCheckState | null>(null);
+  const [repaints, setRepaints] = useState(0);
 
   // Tweaks: the tweaked version of the idea, the (possibly reduced) ingredient list,
   // one step of history, and the last tweak asked for (for "Try again").
@@ -176,12 +186,20 @@ export default function Home() {
     setConceptImage(null);
     setVisualizing(false);
     setVisualizeError(null);
+    setPictureCheck(null);
+    setRepaints(0);
     setTweakedIdea(null);
     setTweakIngredients(null);
     setPrevious(null);
     setTweaking(false);
     setTweakError(null);
     setLastTweak(null);
+  }
+
+  // A check that was still running belongs to a picture that's being replaced: drop it,
+  // so "double-checking" never shows while nothing is running. Finished results stay.
+  function dropRunningCheck() {
+    setPictureCheck((check) => (check?.status === "checking" ? null : check));
   }
 
   // Wait one tick so React has swapped cards <-> result before scrolling.
@@ -323,6 +341,7 @@ export default function Home() {
       budgetPhp: budget,
       timeMinutes: time,
       colors,
+      useEverything,
     };
 
     try {
@@ -343,18 +362,20 @@ export default function Home() {
   }
 
   // Make a concept picture for an idea (the shown one by default), starting from the user's photos.
+  // `cauldron` is the ingredient list for this idea (after a tweak, the tweak's list).
   // The old picture stays on screen until the new one is ready.
-  async function visualize(idea: Idea | null = shownIdea) {
+  async function visualize(idea: Idea | null = shownIdea, cauldron: string[] = currentIngredients) {
     if (!idea) return;
     const id = ++requestId.current;
     const firstPicture = conceptImage === null;
     setVisualizeError(null);
+    dropRunningCheck();
     setVisualizing(true);
 
     // Typed items in the current ingredient list that weren't seen in any photo.
     const typedOnly = ingredients
       .filter((ingredient) => ingredient.source === "typed")
-      .filter((ingredient) => currentIngredients.some((name) => sameName(name, ingredient.name)))
+      .filter((ingredient) => cauldron.some((name) => sameName(name, ingredient.name)))
       .map((ingredient) => ingredient.name);
 
     try {
@@ -364,15 +385,17 @@ export default function Home() {
           description: idea.description,
           materialsUsed: idea.materialsUsed,
         },
-        ingredients: currentIngredients,
+        ingredients: cauldron,
         photos: photos.slice(0, MAX_PHOTOS).map((photo) => photo.dataUrl),
         typedOnly,
         materials: describeMaterials(ingredients, idea.materialsUsed),
+        roles: idea.roles, // "show each ingredient in its role"
       });
       if (id !== requestId.current) return; // the user moved on
 
       setConceptImage(data.image);
       if (firstPicture) scrollToIdeasArea();
+      checkPicture(data.image, idea, cauldron, id); // runs in the background
     } catch (err) {
       if (id === requestId.current) {
         setVisualizeError(err instanceof Error ? err.message : "Something went wrong.");
@@ -382,12 +405,42 @@ export default function Home() {
     }
   }
 
+  // Ask Muse Spark whether the concept picture shows the idea's ingredients (in the background;
+  // nothing waits for it). `pictureRequest` is the visualize request number: if the user has
+  // moved on since (new picture, tweak, other idea), the answer is ignored.
+  async function checkPicture(image: string, idea: Idea, cauldron: string[], pictureRequest: number) {
+    setPictureCheck({ status: "checking" });
+    // The exact cauldron names this idea uses (from the recipe), or its own list as a fallback.
+    const used = idea.roles.length > 0 ? idea.roles.map((role) => role.ingredient) : idea.materialsUsed;
+
+    try {
+      const small = await downscale(image, CHECK_SIZE);
+      const result = await postJson<PictureCheck>("/api/check-picture", {
+        image: small,
+        ingredients: used.slice(0, 30),
+        cauldron: cauldron.slice(0, 30),
+      });
+      if (pictureRequest === requestId.current) setPictureCheck({ status: "done", result });
+    } catch (err) {
+      console.error("Couldn't check the picture:", err);
+      if (pictureRequest === requestId.current) setPictureCheck({ status: "error" });
+    }
+  }
+
+  // "🔁 Repaint" after a picture check: same as Show me! for this idea, at most MAX_REPAINTS times.
+  function repaint() {
+    if (repaints >= MAX_REPAINTS) return;
+    setRepaints(repaints + 1);
+    visualize();
+  }
+
   // Ask Muse Spark to change the shown idea, then paint a new picture for it.
   async function tweak(kind: TweakKind, missing?: string[]) {
     if (!shownIdea || !brewedWith) return;
     const id = ++requestId.current;
     setTweakError(null);
     setVisualizeError(null);
+    dropRunningCheck();
     setLastTweak({ kind, missing });
     setTweaking(true);
 
@@ -401,16 +454,18 @@ export default function Home() {
         tweak: kind,
         missing,
         colors: brewedWith.colors,
+        useEverything: brewedWith.useEverything,
       });
       if (id !== requestId.current) return; // the user moved on
 
       // Save the current version (one level of history), then show the new one.
-      setPrevious({ tweakedIdea, image: conceptImage, ingredients: tweakIngredients });
+      setPrevious({ tweakedIdea, image: conceptImage, ingredients: tweakIngredients, check: pictureCheck });
       setTweakedIdea(data.idea);
       setTweakIngredients(data.ingredients);
+      setRepaints(0); // a new version of the idea gets its own repaints
       setTweaking(false);
       scrollToIdeasArea();
-      visualize(data.idea);
+      visualize(data.idea, data.ingredients);
     } catch (err) {
       if (id === requestId.current) {
         setTweakError(err instanceof Error ? err.message : "Something went wrong.");
@@ -425,6 +480,7 @@ export default function Home() {
     setTweakedIdea(previous.tweakedIdea);
     setConceptImage(previous.image);
     setTweakIngredients(previous.ingredients);
+    setPictureCheck(previous.check?.status === "checking" ? null : previous.check);
     setPrevious(null);
     setVisualizing(false);
     setVisualizeError(null);
@@ -506,7 +562,7 @@ export default function Home() {
         ? "Tell Alchemia what you need first"
         : "Wait for Alchemia to finish first";
 
-  // The ingredients, goal, budget or time changed since the ideas on screen were brewed.
+  // The ingredients, goal, budget, time or "use everything" changed since the ideas on screen were brewed.
   const ideasOutdated =
     ideas.length > 0 &&
     brewedWith !== null &&
@@ -516,7 +572,11 @@ export default function Home() {
     ) ||
       goal.trim() !== brewedWith.goal ||
       budget !== brewedWith.budgetPhp ||
-      time !== brewedWith.timeMinutes);
+      time !== brewedWith.timeMinutes ||
+      useEverything !== brewedWith.useEverything);
+
+  // What the shown ideas were brewed with (the cards and recipe stamps follow it, not the live toggle).
+  const brewedUseEverything = brewedWith?.useEverything ?? false;
 
   // Which steps the stepper can open right now.
   const pictureStarted =
@@ -626,6 +686,8 @@ export default function Home() {
               onBrew={brewAndGo}
               voice={voiceButton}
               onBack={() => goToStep(1)}
+              useEverything={useEverything}
+              onUseEverythingChange={setUseEverything}
             />
           )}
 
@@ -644,6 +706,7 @@ export default function Home() {
               onBrew={brewAndGo}
               onShowMe={showMe}
               onBack={() => goToStep(2)}
+              useEverything={brewedUseEverything}
             />
           )}
 
@@ -669,6 +732,11 @@ export default function Home() {
               voice={voiceButton}
               onTryAnother={backToIdeas}
               onBuild={() => goToStep(5)}
+              ingredients={ingredients}
+              useEverything={brewedUseEverything}
+              pictureCheck={pictureCheck}
+              canRepaint={repaints < MAX_REPAINTS}
+              onRepaint={repaint}
             />
           )}
 
@@ -677,6 +745,8 @@ export default function Home() {
               headingRef={stepHeading}
               bubbling={bubbling}
               idea={shownIdea}
+              ingredients={ingredients}
+              useEverything={brewedUseEverything}
               canStartNew={!loading && !working && !voiceActive}
               onBack={() => goToStep(4)}
               onStartNew={startNewInvention}

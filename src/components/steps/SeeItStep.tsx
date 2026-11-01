@@ -3,11 +3,13 @@
 import type { RefObject } from "react";
 import { BrewProgress } from "@/components/BrewProgress";
 import { ErrorBox } from "@/components/ErrorBox";
+import { PictureCheckNote, type PictureCheckState } from "@/components/PictureCheckNote";
+import { RecipeCard } from "@/components/RecipeCard";
 import { ResultPanel } from "@/components/ResultPanel";
 import { StepShell } from "@/components/StepShell";
 import { StickerCard } from "@/components/StickerCard";
 import { TweakPanel, type TweakKind } from "@/components/TweakPanel";
-import type { Idea, MaterialInfo } from "@/lib/types";
+import type { Idea, Ingredient, MaterialInfo } from "@/lib/types";
 
 type SeeItStepProps = {
   headingRef: RefObject<HTMLHeadingElement | null>;
@@ -30,6 +32,11 @@ type SeeItStepProps = {
   voice: React.ReactNode;
   onTryAnother: () => void; // to step 3
   onBuild: () => void; // to step 5
+  ingredients: Ingredient[]; // the shared list, for colors in the recipe
+  useEverything: boolean; // the brew-time setting
+  pictureCheck: PictureCheckState | null;
+  canRepaint: boolean;
+  onRepaint: () => void;
 };
 
 // Step 4: before/after picture, and tweaks.
@@ -54,6 +61,11 @@ export function SeeItStep({
   voice,
   onTryAnother,
   onBuild,
+  ingredients,
+  useEverything,
+  pictureCheck,
+  canRepaint,
+  onRepaint,
 }: SeeItStepProps) {
   const working = visualizing || tweaking;
 
@@ -89,7 +101,12 @@ export function SeeItStep({
               afterImage={conceptImage}
               painting={visualizing}
               showBuild={false}
+              useEverything={useEverything}
+              afterNote={
+                <PictureCheckNote check={pictureCheck} canRepaint={canRepaint} busy={working} onRepaint={onRepaint} />
+              }
             />
+            <RecipeCard idea={idea} ingredients={ingredients} useEverything={useEverything} />
             <TweakPanel
               materials={idea.materialsUsed}
               busy={working}

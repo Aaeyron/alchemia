@@ -22,6 +22,8 @@ type NeedStepProps = {
   onBrew: () => void;
   voice: React.ReactNode;
   onBack: () => void;
+  useEverything: boolean;
+  onUseEverythingChange: (useEverything: boolean) => void;
 };
 
 // Step 2: what do you need, and how much money and time do you have?
@@ -86,6 +88,8 @@ export function NeedStep(props: NeedStepProps) {
         onBrew={props.onBrew}
         voice={props.voice}
         showButton={false}
+        useEverything={props.useEverything}
+        onUseEverythingChange={props.onUseEverythingChange}
       />
     </StepShell>
   );

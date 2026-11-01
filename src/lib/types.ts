@@ -50,6 +50,27 @@ export type IdeaChecks = {
   materials: boolean; // only uses the selected ingredients
   budget: boolean; // costPhp <= budget
   time: boolean; // timeMinutes <= time limit
+  usesAll: boolean; // no cauldron ingredient is skipped (only a rule when "use everything" is on)
+};
+
+// What one used ingredient becomes in the finished project, e.g. { "plastic bottle", "the pen cup" }.
+export type IngredientRole = { ingredient: string; role: string };
+
+// A cauldron ingredient the idea doesn't use, and why.
+export type SkippedIngredient = { ingredient: string; reason: string };
+
+// Counted in plain code from materialsUsed (not the model's own count).
+export type IdeaUsage = {
+  usedCount: number;
+  totalCount: number; // how many ingredients were in the cauldron
+  skippedNames: string[];
+};
+
+// What /api/check-picture found when comparing a concept picture with the idea's ingredients.
+export type PictureCheck = {
+  matched: string[]; // ingredients that can be seen in the picture
+  missing: string[]; // ingredients that can't clearly be seen
+  extras: string[]; // things in the picture that aren't in the cauldron
 };
 
 export type Idea = {
@@ -62,5 +83,10 @@ export type Idea = {
   difficulty: 1 | 2 | 3;
   safetyNote: string;
   buildSteps: string[];
+  // The recipe: every cauldron ingredient is in exactly one of these two lists
+  // (names are the exact cauldron names, cleaned up in code on the server).
+  roles: IngredientRole[];
+  skipped: SkippedIngredient[];
+  usage: IdeaUsage;
   checks: IdeaChecks;
 };

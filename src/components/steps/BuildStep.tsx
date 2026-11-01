@@ -3,22 +3,35 @@
 import type { RefObject } from "react";
 import { BuildSteps } from "@/components/BuildSteps";
 import { PaperClip, Pencil } from "@/components/Doodles";
+import { RecipeCard } from "@/components/RecipeCard";
 import { SafetyBox } from "@/components/SafetyBox";
 import { StepShell } from "@/components/StepShell";
 import { StickerCard } from "@/components/StickerCard";
-import type { Idea } from "@/lib/types";
+import { UsageStamp } from "@/components/UsageStamp";
+import type { Idea, Ingredient } from "@/lib/types";
 
 type BuildStepProps = {
   headingRef: RefObject<HTMLHeadingElement | null>;
   bubbling: boolean;
   idea: Idea | null; // the CURRENT idea (including tweaks)
+  ingredients: Ingredient[]; // the shared list, for colors in the recipe
+  useEverything: boolean; // the brew-time setting
   canStartNew: boolean;
   onBack: () => void; // to step 4
   onStartNew: () => void;
 };
 
 // Step 5: how to build the current idea, step by step, and how to stay safe.
-export function BuildStep({ headingRef, bubbling, idea, canStartNew, onBack, onStartNew }: BuildStepProps) {
+export function BuildStep({
+  headingRef,
+  bubbling,
+  idea,
+  ingredients,
+  useEverything,
+  canStartNew,
+  onBack,
+  onStartNew,
+}: BuildStepProps) {
   return (
     <StepShell
       emoji="🛠️"
@@ -45,8 +58,11 @@ export function BuildStep({ headingRef, bubbling, idea, canStartNew, onBack, onS
                 <span>⏱️ {idea.timeMinutes} min</span>
                 <span>🪙 {idea.costPhp === 0 ? "Free!" : `₱${idea.costPhp}`}</span>
               </p>
+              <UsageStamp idea={idea} useEverything={useEverything} />
             </StickerCard>
           </div>
+
+          <RecipeCard idea={idea} ingredients={ingredients} useEverything={useEverything} />
 
           {idea.buildSteps.length > 0 && (
             <StickerCard tone="paper" emoji="🛠️" title="How to make it">

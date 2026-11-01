@@ -9,10 +9,11 @@ type IdeaCardProps = {
   index: number;
   chosen: boolean;
   onChoose: () => void;
+  useEverything: boolean; // the brew-time setting: makes "uses N of M" a real check
 };
 
 // One invention idea, written on a notebook page. Tapping anywhere on it picks it.
-export function IdeaCard({ idea, index, chosen, onChoose }: IdeaCardProps) {
+export function IdeaCard({ idea, index, chosen, onChoose, useEverything }: IdeaCardProps) {
   return (
     // Clicks on the inner button bubble up here, so the whole card is tappable.
     <div
@@ -20,7 +21,7 @@ export function IdeaCard({ idea, index, chosen, onChoose }: IdeaCardProps) {
       className={`cursor-pointer rounded-[1.75rem] ${chosen ? "outline-4 outline-offset-4 outline-pink" : ""}`}
     >
       <StickerCard as="article" tone="paper" index={index} emoji={idea.emoji} title={idea.title}>
-        <IdeaDetails idea={idea} />
+        <IdeaDetails idea={idea} useEverything={useEverything} />
 
         <SafetyBox>{idea.safetyNote}</SafetyBox>
 

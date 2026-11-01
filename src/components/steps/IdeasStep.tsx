@@ -22,6 +22,7 @@ type IdeasStepProps = {
   onBrew: () => void; // "Try again" and "Brew again"
   onShowMe: () => void;
   onBack: () => void; // to step 2
+  useEverything: boolean; // the setting these ideas were brewed with
 };
 
 // Step 3: the bubbling cauldron, then the 3 idea cards to pick from.
@@ -61,7 +62,13 @@ export function IdeasStep(props: IdeasStepProps) {
       {/* The cards pop in one after another (100 ms apart). */}
       {ideas.map((idea, i) => (
         <div key={i} className="pop-in" style={{ animationDelay: `${i * 100}ms` }}>
-          <IdeaCard idea={idea} index={i} chosen={chosen === i} onChoose={() => props.onChoose(i)} />
+          <IdeaCard
+            idea={idea}
+            index={i}
+            chosen={chosen === i}
+            onChoose={() => props.onChoose(i)}
+            useEverything={props.useEverything}
+          />
         </div>
       ))}
     </StepShell>

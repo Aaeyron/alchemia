@@ -17,6 +17,8 @@ type ResultPanelProps = {
   painting?: boolean; // a new AFTER picture is being made (the old one stays until it's ready)
   showBuild?: boolean; // false = leave out the build steps and safety note (they have their own step)
   onBack?: () => void; // shows a "Try another idea" button when given
+  useEverything?: boolean; // the brew-time setting, for the "uses N of M" stamp
+  afterNote?: React.ReactNode; // shown under the AFTER picture (the picture check)
 };
 
 // Before/after pictures, build steps and the safety note for the chosen idea.
@@ -29,32 +31,37 @@ export function ResultPanel({
   painting = false,
   showBuild = true,
   onBack,
+  useEverything = false,
+  afterNote,
 }: ResultPanelProps) {
   return (
     <StickerCard tone="sky" emoji={idea.emoji} title={idea.title} className="pop-in">
-      <IdeaDetails idea={idea} />
+      <IdeaDetails idea={idea} useEverything={useEverything} />
 
       {/* Stacked on phones, side by side on wider screens. pt-3 leaves room for the tape. */}
       <div className="grid items-start gap-6 pt-3 sm:grid-cols-2">
         <BeforeSide photos={beforePhotos} materials={materials} notUsed={notUsed} />
-        <div className="relative">
-          {/* A new key per picture replays the pop-in when a new picture arrives. */}
-          <div key={afterImage} className={`pop-in ${painting ? "opacity-60" : ""}`}>
-            <Polaroid
-              src={afterImage}
-              alt={`Concept picture of ${idea.title}`}
-              label="After ✨"
-              tilt="rotate-1"
-              tape="tape-pink"
-            />
-          </div>
-          {painting && (
-            <div className="absolute inset-0 flex items-center justify-center p-4">
-              <div className="sticker max-w-full bg-white px-4 py-3">
-                <BrewProgress kind="paint" compact />
-              </div>
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            {/* A new key per picture replays the pop-in when a new picture arrives. */}
+            <div key={afterImage} className={`pop-in ${painting ? "opacity-60" : ""}`}>
+              <Polaroid
+                src={afterImage}
+                alt={`Concept picture of ${idea.title}`}
+                label="After ✨"
+                tilt="rotate-1"
+                tape="tape-pink"
+              />
             </div>
-          )}
+            {painting && (
+              <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div className="sticker max-w-full bg-white px-4 py-3">
+                  <BrewProgress kind="paint" compact />
+                </div>
+              </div>
+            )}
+          </div>
+          {afterNote}
         </div>
       </div>
       <p className="caption text-center">Concept picture. The real thing may look different.</p>

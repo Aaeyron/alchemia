@@ -17,6 +17,8 @@ type BrewFormProps = {
   onBrew: () => void;
   voice?: React.ReactNode; // optional mic button, shown under the goal input
   showButton?: boolean; // false = no Brew button here (pressing Enter still brews)
+  useEverything?: boolean; // "Use everything in my cauldron" (shown only when the handler is given)
+  onUseEverythingChange?: (useEverything: boolean) => void;
 };
 
 // Goal, budget and time inputs, plus the big "Brew possibilities" button.
@@ -31,6 +33,8 @@ export function BrewForm({
   onBrew,
   voice,
   showButton = true,
+  useEverything = false,
+  onUseEverythingChange,
 }: BrewFormProps) {
   const canBrew = goal.trim() !== "" && !brewing;
 
@@ -85,6 +89,25 @@ export function BrewForm({
           ))}
         </div>
       </fieldset>
+
+      {onUseEverythingChange && (
+        // A real checkbox (keyboard and screen readers know it), drawn big and chunky.
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={useEverything}
+            onChange={(event) => onUseEverythingChange(event.target.checked)}
+            aria-describedby="use-everything-help"
+            className="mt-1 h-7 w-7 shrink-0 cursor-pointer accent-ink"
+          />
+          <span className="flex flex-col">
+            <span className="h-sub">♻️ Use everything in my cauldron</span>
+            <span id="use-everything-help" className="hint">
+              Ideas must use every ingredient, if it makes sense.
+            </span>
+          </span>
+        </label>
+      )}
 
       {showButton && (
         <Button type="submit" variant="primary" size="large" disabled={!canBrew}>

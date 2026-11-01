@@ -16,6 +16,7 @@ export const LIMITS = {
   detect: 30,
   transcribe: 40,
   "voice-intent": 40,
+  "check-picture": 20,
 } as const;
 
 export type LimitedRoute = keyof typeof LIMITS;

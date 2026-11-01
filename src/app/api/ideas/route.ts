@@ -1,6 +1,8 @@
 import {
   COLOR_RULE,
+  IDEA_JSON_EXAMPLE,
   askForIdeas,
+  recipeRules,
   listIngredients,
   readColors,
   readIdeaRequest,
@@ -12,7 +14,10 @@ import { checkRateLimit } from "@/lib/rateLimit";
 // Ideas can need two Spark calls (first answer + one retry).
 export const maxDuration = 300;
 
-function buildPrompt({ ingredients, goal, budgetPhp, timeMinutes }: IdeaRequest, colors: Record<string, string>): string {
+function buildPrompt(
+  { ingredients, goal, budgetPhp, timeMinutes, useEverything }: IdeaRequest,
+  colors: Record<string, string>
+): string {
   return `You are Alchemia, a friendly invention helper for students.
 
 Goal: ${goal}
@@ -27,18 +32,17 @@ Rules:
 - In materialsUsed, write each ingredient name exactly as it appears in the list
   (without the color in brackets).
 - costPhp must be at most ${budgetPhp}. timeMinutes must be at most ${timeMinutes}.
+${recipeRules(useEverything)}
 ${COLOR_RULE}
 - Write in simple, friendly English a student can follow.
 - safetyNote: if the idea involves sharp tools, heat, electricity or chemicals, give a
   short safety tip. Otherwise write "Looks safe!".
 
 Return JSON only — no explanation, no markdown — as an array of exactly 3 objects:
-[{"title": "short name", "emoji": "one emoji", "description": "one sentence",
-  "materialsUsed": ["..."], "timeMinutes": 10, "costPhp": 0, "difficulty": 1,
-  "safetyNote": "...", "buildSteps": ["step 1", "step 2"]}]`;
+[${IDEA_JSON_EXAMPLE}]`;
 }
 
-// POST /api/ideas — body: { ingredients, goal, budgetPhp, timeMinutes, colors? }
+// POST /api/ideas — body: { ingredients, goal, budgetPhp, timeMinutes, colors?, useEverything? }
 export async function POST(request: Request) {
   const limited = checkRateLimit(request, "ideas");
   if (limited) return limited;

@@ -7,7 +7,7 @@ import { Mascot } from "@/components/Mascot";
 // "Work-in-progress animations" section in globals.css); reduced-motion users get a
 // still frame with the same text.
 
-export type ProgressKind = "detect" | "segment" | "brew" | "paint" | "tweak" | "voice";
+export type ProgressKind = "detect" | "segment" | "brew" | "paint" | "tweak" | "voice" | "check";
 
 // Friendly messages that rotate while waiting. Honest: no fake percentages.
 const MESSAGES: Record<ProgressKind, string[]> = {
@@ -23,6 +23,7 @@ const MESSAGES: Record<ProgressKind, string[]> = {
   paint: ["Mixing the colors…", "Sketching your concept picture…", "Keeping your real colors…", "Adding the final touches…"],
   tweak: ["Waving the wand…", "Rearranging the pieces…", "Making it just right…", "Double-checking the rules…"],
   voice: ["Writing it down…", "Thinking about what you said…", "Almost there…"],
+  check: ["Comparing the picture with your recipe…", "Looking for each ingredient…"],
 };
 
 const ICONS: Record<ProgressKind, string> = {
@@ -32,6 +33,7 @@ const ICONS: Record<ProgressKind, string> = {
   paint: "🖌️",
   tweak: "🪄",
   voice: "🎙️",
+  check: "🔍",
 };
 
 const PANEL_COLORS: Record<ProgressKind, string> = {
@@ -41,6 +43,7 @@ const PANEL_COLORS: Record<ProgressKind, string> = {
   paint: "bg-pink-soft",
   tweak: "bg-white",
   voice: "bg-white",
+  check: "bg-white",
 };
 
 // Which model is working while each kind of progress shows (plain text, no logos).
@@ -53,6 +56,7 @@ const MODEL_BADGES: Record<ProgressKind, string | null> = {
   paint: "Muse Image is painting your concept picture", // /api/visualize
   tweak: "Muse Spark is redesigning your idea", // /api/tweak
   voice: null,
+  check: "Muse Spark is double-checking the picture", // /api/check-picture
 };
 
 const ROTATE_MS = 2500;

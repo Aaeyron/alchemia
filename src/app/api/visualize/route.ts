@@ -1,6 +1,6 @@
 import { editImage, generateImage } from "@/lib/meta";
 import { checkRateLimit } from "@/lib/rateLimit";
-import type { MaterialInfo } from "@/lib/types";
+import type { IngredientRole, MaterialInfo } from "@/lib/types";
 
 // Vercel Hobby allows up to 300 s per function (the plan's maximum).
 // This is the slowest route: an image edit, and possibly a text-to-image fallback after it.
@@ -14,9 +14,31 @@ type VisualizeRequest = {
   photos: string[]; // the user's downscaled photos (data URLs), may be empty
   typedOnly: string[]; // typed materials not seen in any photo, may be empty
   materials: MaterialInfo[]; // the idea's materials with known colors; may be empty (older callers)
+  roles: IngredientRole[]; // what each ingredient becomes in the project; may be empty (older callers)
 };
 
 const isShortText = (value: unknown) => typeof value === "string" && value.length <= 40;
+
+// Optional list of { ingredient, role }. Returns null if it's present but malformed.
+function readRoles(value: unknown): IngredientRole[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 30) return null;
+  const roles: IngredientRole[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) return null;
+    const { ingredient, role } = item as Record<string, unknown>;
+    const good =
+      typeof ingredient === "string" &&
+      ingredient.trim() !== "" &&
+      ingredient.length <= 80 &&
+      typeof role === "string" &&
+      role.trim() !== "" &&
+      role.length <= 80;
+    if (!good) return null;
+    roles.push({ ingredient: ingredient.trim(), role: role.trim() });
+  }
+  return roles;
+}
 
 // Optional list of { name, color?, material?, source }. Returns null if it's present but malformed.
 function readMaterials(value: unknown): MaterialInfo[] | null {
@@ -56,8 +78,16 @@ function isStringList(value: unknown): value is string[] {
 // Check the request body. Returns null if anything is missing or the wrong type.
 function readRequest(body: unknown): VisualizeRequest | null {
   if (typeof body !== "object" || body === null) return null;
-  const { idea, ingredients, photos = [], typedOnly = [], materials: rawMaterials } = body as Record<string, unknown>;
+  const {
+    idea,
+    ingredients,
+    photos = [],
+    typedOnly = [],
+    materials: rawMaterials,
+    roles: rawRoles,
+  } = body as Record<string, unknown>;
   const materials = readMaterials(rawMaterials);
+  const roles = readRoles(rawRoles);
   if (typeof idea !== "object" || idea === null) return null;
   const { title, description, materialsUsed } = idea as Record<string, unknown>;
 
@@ -76,7 +106,8 @@ function readRequest(body: unknown): VisualizeRequest | null {
     !isStringList(ingredients) ||
     !goodPhotos ||
     !goodTypedOnly ||
-    !materials
+    !materials ||
+    !roles
   ) {
     return null;
   }
@@ -86,7 +117,16 @@ function readRequest(body: unknown): VisualizeRequest | null {
     photos: photos as string[],
     typedOnly: typedOnly as string[],
     materials,
+    roles,
   };
+}
+
+// "Show each ingredient in its role: tape is the handle; plastic bottle is the pen cup.
+// Show no other objects." Empty when the page sent no roles (the prompts stay as before).
+function roleLines({ roles }: VisualizeRequest): string {
+  if (roles.length === 0) return "";
+  const list = roles.map(({ ingredient, role }) => `${ingredient} is ${role}`).join("; ");
+  return `\nShow each ingredient in its role: ${list}.\nShow no other objects.`;
 }
 
 // "plastic bottle (blue, plastic), tape (no color given)" — falls back to plain names
@@ -126,7 +166,7 @@ function colorRules({ materials }: VisualizeRequest, fromPhotos: boolean): strin
 function buildImagePrompt(req: VisualizeRequest): string {
   const { title, description } = req.idea;
   return `A bright, friendly, realistic photo of a finished DIY project. ${title}: ${description}
-It is made ONLY from these materials: ${describeMaterials(req)}.
+It is made ONLY from these materials: ${describeMaterials(req)}.${roleLines(req)}
 ${colorRules(req, false)}`;
 }
 
@@ -138,12 +178,12 @@ function buildEditPrompt(req: VisualizeRequest): string {
       ? `These items are not in the photos; show them only if the project needs them: ${typedOnly.join(", ")}.\n`
       : "";
   return `Using these photos, transform ONLY these materials into the finished project: ${describeMaterials(req)}.
-The finished project is "${idea.title}": ${idea.description}
+The finished project is "${idea.title}": ${idea.description}${roleLines(req)}
 ${typedLine}A bright, friendly, realistic photo.
 ${colorRules(req, true)}`;
 }
 
-// POST /api/visualize — body: { idea: { title, description, materialsUsed }, ingredients, photos?, typedOnly?, materials? }
+// POST /api/visualize — body: { idea: { title, description, materialsUsed }, ingredients, photos?, typedOnly?, materials?, roles? }
 export async function POST(request: Request) {
   const limited = checkRateLimit(request, "visualize");
   if (limited) return limited;
