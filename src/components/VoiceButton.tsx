@@ -9,7 +9,9 @@ import { recordingToWav } from "@/lib/wav";
 const MAX_SECONDS = 15;
 const MESSAGE_SECONDS = 7; // how long "You said: …" stays visible
 
-type Phase = "idle" | "listening" | "writing" | "thinking";
+// listening = recording in the browser; converting = making the WAV in the browser;
+// writing = /api/transcribe is running; thinking = /api/voice-intent is running.
+type Phase = "idle" | "listening" | "converting" | "writing" | "thinking";
 
 type VoiceButtonProps = {
   disabled: boolean; // can't START while something else is running (an active recording can still stop)
@@ -22,8 +24,18 @@ type VoiceButtonProps = {
 const LABELS: Record<Phase, string> = {
   idle: "🎤 Tell Alchemia",
   listening: "⏹️ Listening… tap to stop",
+  converting: "✍️ Writing it down…",
   writing: "✍️ Writing it down…",
   thinking: "🧠 Thinking…",
+};
+
+// Which model is working in each phase (only while its request runs; recording is just the browser).
+const MODEL_BADGES: Record<Phase, string | null> = {
+  idle: null,
+  listening: null,
+  converting: null,
+  writing: "Muse Voice Transcribe is listening",
+  thinking: "Muse Spark is understanding what you said",
 };
 
 // Tap to record (up to 15 s), tap again to stop. The clip is turned into WAV in the browser,
@@ -96,7 +108,7 @@ export function VoiceButton({ disabled, keywords, onActiveChange, onText }: Voic
   }
 
   async function handleRecording(recording: Blob) {
-    setPhase("writing");
+    setPhase("converting");
     try {
       const { wav, seconds } = await recordingToWav(recording);
       if (seconds < 0.3) return finish(null, "That was too short. Tap, talk, then tap again!");
@@ -104,6 +116,7 @@ export function VoiceButton({ disabled, keywords, onActiveChange, onText }: Voic
       const form = new FormData();
       form.append("audio", wav, "voice.wav");
       form.append("keywords", JSON.stringify(latest.current.keywords));
+      setPhase("writing");
       const { text } = await sendToApi<{ text: string }>("/api/transcribe", form);
       if (text === "") return finish(null, "I didn't hear anything. Try again, a little louder?");
 
@@ -152,7 +165,7 @@ export function VoiceButton({ disabled, keywords, onActiveChange, onText }: Voic
       {/* Little sound wave + dots while listening, writing or thinking (the button keeps its text). */}
       {phase !== "idle" && (
         <div className="flex justify-center">
-          <BrewProgress kind="voice" compact hideText />
+          <BrewProgress kind="voice" compact hideText modelBadge={MODEL_BADGES[phase]} />
         </div>
       )}
 

@@ -43,6 +43,18 @@ const PANEL_COLORS: Record<ProgressKind, string> = {
   voice: "bg-white",
 };
 
+// Which model is working while each kind of progress shows (plain text, no logos).
+// Each kind is only shown while that model's request runs. Voice has two models, so the
+// mic button passes its own badge (see VoiceButton.tsx); none is shown while just recording.
+const MODEL_BADGES: Record<ProgressKind, string | null> = {
+  detect: "Muse Spark is reading your photo", // /api/detect
+  segment: "SAM 3.1 is finding the edges", // /api/segment
+  brew: "Muse Spark is writing ideas", // /api/ideas (also during its single retry)
+  paint: "Muse Image is painting your concept picture", // /api/visualize
+  tweak: "Muse Spark is redesigning your idea", // /api/tweak
+  voice: null,
+};
+
 const ROTATE_MS = 2500;
 const SLOW_MS = 12_000;
 const VERY_SLOW_MS = 30_000;
@@ -57,10 +69,27 @@ type BrewProgressProps = {
   emojis?: string[]; // brew: the selected ingredients' emojis (up to 6 hop into the pot)
   photo?: string; // detect / segment: the photo being looked at
   hideText?: boolean; // visual only (the caller already shows its own text)
+  modelBadge?: string | null; // overrides the model badge for this kind (null = none)
 };
 
-export function BrewProgress({ kind, compact = false, emojis = [], photo, hideText = false }: BrewProgressProps) {
+export function BrewProgress({
+  kind,
+  compact = false,
+  emojis = [],
+  photo,
+  hideText = false,
+  modelBadge,
+}: BrewProgressProps) {
   const messages = MESSAGES[kind];
+  const badgeText = modelBadge === undefined ? MODEL_BADGES[kind] : modelBadge;
+  // A small blue ink stamp naming the model. Not a live region: the status above/next to it
+  // is the only announcement, so screen readers don't hear things twice.
+  const badge = badgeText && (
+    <p className="stamp -rotate-1 max-w-full text-center normal-case">
+      <span aria-hidden="true">⚙️</span>
+      {badgeText}
+    </p>
+  );
   const [index, setIndex] = useState(0);
   const [slowness, setSlowness] = useState(0); // 0 = normal, 1 = >12 s, 2 = >30 s
 
@@ -100,15 +129,18 @@ export function BrewProgress({ kind, compact = false, emojis = [], photo, hideTe
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2">
-        {kind === "voice" ? (
-          <VoiceWave />
-        ) : (
-          <span aria-hidden="true" className="wip wip-wave inline-block text-2xl">
-            {ICONS[kind]}
-          </span>
-        )}
-        {status}
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center gap-2">
+          {kind === "voice" ? (
+            <VoiceWave />
+          ) : (
+            <span aria-hidden="true" className="wip wip-wave inline-block text-2xl">
+              {ICONS[kind]}
+            </span>
+          )}
+          {status}
+        </div>
+        {badge}
       </div>
     );
   }
@@ -120,6 +152,7 @@ export function BrewProgress({ kind, compact = false, emojis = [], photo, hideTe
       {kind === "tweak" && <TweakScene />}
       {(kind === "detect" || kind === "segment") && <ScanScene photo={photo} />}
       {kind === "voice" && <VoiceWave />}
+      {badge}
       {status}
     </div>
   );
