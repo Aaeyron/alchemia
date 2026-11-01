@@ -165,7 +165,7 @@ function colorRules({ materials }: VisualizeRequest, fromPhotos: boolean): strin
 // Text-only picture prompt (used when there are no photos, or the edit fails).
 function buildImagePrompt(req: VisualizeRequest): string {
   const { title, description } = req.idea;
-  return `A bright, friendly, realistic photo of a finished DIY project. ${title}: ${description}
+  return `A bright, friendly, realistic photo of a finished DIY project. ${title}${description ? `: ${description}` : "."}
 It is made ONLY from these materials: ${describeMaterials(req)}.${roleLines(req)}
 ${colorRules(req, false)}`;
 }
@@ -178,9 +178,111 @@ function buildEditPrompt(req: VisualizeRequest): string {
       ? `These items are not in the photos; show them only if the project needs them: ${typedOnly.join(", ")}.\n`
       : "";
   return `Using these photos, transform ONLY these materials into the finished project: ${describeMaterials(req)}.
-The finished project is "${idea.title}": ${idea.description}${roleLines(req)}
+The finished project is "${idea.title}"${idea.description ? `: ${idea.description}` : "."}${roleLines(req)}
 ${typedLine}A bright, friendly, realistic photo.
 ${colorRules(req, true)}`;
+}
+
+// ---------- Calling Muse Image: retry, content filter, logging ----------
+
+type Endpoint = "edits" | "generations";
+
+const RETRY_DELAY_MS = 1500;
+const DEADLINE_MS = 200_000; // stop trying new attempts after this, to stay under maxDuration
+
+// The HTTP status in our meta.ts errors ("Muse Image edit failed (400): ..."), if any.
+function upstreamStatus(err: unknown): number | null {
+  const match = err instanceof Error ? err.message.match(/\((\d{3})\)/) : null;
+  return match ? Number(match[1]) : null;
+}
+
+// Meta's content filter rejected the prompt (a 400 with this code).
+function isContentPolicy(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("content_policy_violation");
+}
+
+// Worth one more try: the network failed (fetch throws a TypeError) or Meta had a 5xx error.
+function isTemporary(err: unknown): boolean {
+  const status = upstreamStatus(err);
+  return err instanceof TypeError || (status !== null && status >= 500);
+}
+
+// The same request without the text Muse Spark wrote (title, description, roles), which is what
+// tripped the content filter after a tweak. Only the ingredients and the house rules remain.
+function withoutIdeaText(req: VisualizeRequest): VisualizeRequest {
+  return { ...req, idea: { ...req.idea, title: "a simple DIY craft project", description: "" }, roles: [] };
+}
+
+// "2 photos: 212 KB, 187 KB" — sizes only, never the photo data.
+function describePhotos(photos: string[]): string {
+  const sizes = photos.map((photo) => `${Math.round((photo.length * 3) / 4 / 1024)} KB`);
+  return `${photos.length} photo(s)${sizes.length > 0 ? `: ${sizes.join(", ")}` : ""}`;
+}
+
+// One call to Muse Image, retried once after a short delay on network errors or 5xx (never on 4xx).
+// Logs the endpoint, result, status and duration on the server.
+async function callImage(endpoint: Endpoint, req: VisualizeRequest, label: string): Promise<string> {
+  for (let attempt = 1; ; attempt++) {
+    const started = Date.now();
+    try {
+      const image =
+        endpoint === "edits"
+          ? await editImage(buildEditPrompt(req), req.photos)
+          : await generateImage(buildImagePrompt(req));
+      console.log(
+        `visualize: /images/${endpoint} (${label}) ok in ${Date.now() - started} ms` +
+          (endpoint === "edits" ? `, ${describePhotos(req.photos)}` : "")
+      );
+      return image;
+    } catch (err) {
+      console.error(
+        `visualize: /images/${endpoint} (${label}) failed in ${Date.now() - started} ms, ` +
+          `status ${upstreamStatus(err) ?? "none"}` +
+          (endpoint === "edits" ? `, ${describePhotos(req.photos)}` : "") +
+          ":",
+        err
+      );
+      if (attempt === 1 && isTemporary(err)) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/**
+ * Paint the picture. Tries, in order (skipping what doesn't apply):
+ * 1. /images/edits from the user's photos, with the full prompt,
+ * 2. if Meta's content filter blocked the prompt: /images/edits without the idea's text,
+ * 3. /images/generations (text only), with the full prompt, or without the idea's text
+ *    if the filter already blocked it.
+ */
+async function paint(req: VisualizeRequest): Promise<string> {
+  const started = Date.now();
+  const endpoints: Endpoint[] = req.photos.length > 0 ? ["edits", "generations"] : ["generations"];
+  let blocked = false; // the content filter rejected the full prompt
+  let lastError: unknown = new Error("No picture attempt was made.");
+
+  for (const endpoint of endpoints) {
+    for (const plain of [false, true]) {
+      if (plain !== blocked) continue; // full prompt until it's blocked, then only the plain one
+      if (Date.now() - started > DEADLINE_MS) throw lastError;
+      try {
+        return await callImage(endpoint, plain ? withoutIdeaText(req) : req, plain ? "plain prompt" : "full prompt");
+      } catch (err) {
+        lastError = err;
+        if (isContentPolicy(err) && !blocked) {
+          blocked = true;
+          // Development only: show the blocked prompt, to find the words that trip the filter.
+          if (process.env.NODE_ENV !== "production") {
+            console.error("visualize: blocked prompt was:\n" + (endpoint === "edits" ? buildEditPrompt(req) : buildImagePrompt(req)));
+          }
+        }
+      }
+    }
+  }
+  throw lastError;
 }
 
 // POST /api/visualize — body: { idea: { title, description, materialsUsed }, ingredients, photos?, typedOnly?, materials?, roles? }
@@ -203,18 +305,7 @@ export async function POST(request: Request) {
 
   try {
     // Prefer starting from the user's real photos; fall back to a picture from text alone.
-    if (req.photos.length > 0) {
-      try {
-        const image = await editImage(buildEditPrompt(req), req.photos);
-        console.log(`visualize: used /images/edits with ${req.photos.length} photo(s)`);
-        return Response.json({ image });
-      } catch (err) {
-        console.error("visualize: /images/edits failed, falling back to /images/generations:", err);
-      }
-    }
-
-    const image = await generateImage(buildImagePrompt(req));
-    console.log("visualize: used /images/generations");
+    const image = await paint(req);
     return Response.json({ image });
   } catch (err) {
     // Details stay in the server log; the visitor gets a friendly message.

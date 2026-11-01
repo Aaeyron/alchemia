@@ -50,6 +50,7 @@ type Snapshot = {
   image: string | null;
   ingredients: string[] | null; // null = the brewed ingredients
   check: PictureCheckState | null; // the picture check of that version
+  pictureOutdated: boolean; // that version was showing an older picture
 };
 
 const MAX_PHOTOS = 3;
@@ -134,6 +135,8 @@ export default function Home() {
   // Background check of the concept picture on screen, and how many repaints this idea had.
   const [pictureCheck, setPictureCheck] = useState<PictureCheckState | null>(null);
   const [repaints, setRepaints] = useState(0);
+  // True after a tweak until its new picture arrives: the picture on screen is the previous version's.
+  const [pictureOutdated, setPictureOutdated] = useState(false);
 
   // Tweaks: the tweaked version of the idea, the (possibly reduced) ingredient list,
   // one step of history, and the last tweak asked for (for "Try again").
@@ -188,6 +191,7 @@ export default function Home() {
     setVisualizeError(null);
     setPictureCheck(null);
     setRepaints(0);
+    setPictureOutdated(false);
     setTweakedIdea(null);
     setTweakIngredients(null);
     setPrevious(null);
@@ -394,6 +398,7 @@ export default function Home() {
       if (id !== requestId.current) return; // the user moved on
 
       setConceptImage(data.image);
+      setPictureOutdated(false);
       if (firstPicture) scrollToIdeasArea();
       checkPicture(data.image, idea, cauldron, id); // runs in the background
     } catch (err) {
@@ -459,10 +464,19 @@ export default function Home() {
       if (id !== requestId.current) return; // the user moved on
 
       // Save the current version (one level of history), then show the new one.
-      setPrevious({ tweakedIdea, image: conceptImage, ingredients: tweakIngredients, check: pictureCheck });
+      setPrevious({
+        tweakedIdea,
+        image: conceptImage,
+        ingredients: tweakIngredients,
+        check: pictureCheck,
+        pictureOutdated,
+      });
       setTweakedIdea(data.idea);
       setTweakIngredients(data.ingredients);
       setRepaints(0); // a new version of the idea gets its own repaints
+      // The new idea shows right away; until its picture arrives (or if painting fails),
+      // the old picture stays, labelled as the previous version's.
+      if (conceptImage) setPictureOutdated(true);
       setTweaking(false);
       scrollToIdeasArea();
       visualize(data.idea, data.ingredients);
@@ -481,6 +495,7 @@ export default function Home() {
     setConceptImage(previous.image);
     setTweakIngredients(previous.ingredients);
     setPictureCheck(previous.check?.status === "checking" ? null : previous.check);
+    setPictureOutdated(previous.pictureOutdated);
     setPrevious(null);
     setVisualizing(false);
     setVisualizeError(null);
@@ -737,6 +752,7 @@ export default function Home() {
               pictureCheck={pictureCheck}
               canRepaint={repaints < MAX_REPAINTS}
               onRepaint={repaint}
+              pictureOutdated={pictureOutdated}
             />
           )}
 

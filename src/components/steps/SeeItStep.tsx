@@ -2,8 +2,8 @@
 
 import type { RefObject } from "react";
 import { BrewProgress } from "@/components/BrewProgress";
-import { ErrorBox } from "@/components/ErrorBox";
 import { PictureCheckNote, type PictureCheckState } from "@/components/PictureCheckNote";
+import { PictureError } from "@/components/PictureError";
 import { RecipeCard } from "@/components/RecipeCard";
 import { ResultPanel } from "@/components/ResultPanel";
 import { StepShell } from "@/components/StepShell";
@@ -37,6 +37,7 @@ type SeeItStepProps = {
   pictureCheck: PictureCheckState | null;
   canRepaint: boolean;
   onRepaint: () => void;
+  pictureOutdated: boolean; // the picture on screen belongs to the previous version (a tweak's picture failed or is coming)
 };
 
 // Step 4: before/after picture, and tweaks.
@@ -66,6 +67,7 @@ export function SeeItStep({
   pictureCheck,
   canRepaint,
   onRepaint,
+  pictureOutdated,
 }: SeeItStepProps) {
   const working = visualizing || tweaking;
 
@@ -102,8 +104,17 @@ export function SeeItStep({
               painting={visualizing}
               showBuild={false}
               useEverything={useEverything}
+              pictureOutdated={pictureOutdated}
               afterNote={
-                <PictureCheckNote check={pictureCheck} canRepaint={canRepaint} busy={working} onRepaint={onRepaint} />
+                // Painting failed: only the picture area says so. Otherwise the picture check
+                // (not for an old picture: it was checked against the previous version).
+                visualizeError ? (
+                  <PictureError message={visualizeError} busy={working} onRetry={onRetryPicture} />
+                ) : (
+                  !pictureOutdated && (
+                    <PictureCheckNote check={pictureCheck} canRepaint={canRepaint} busy={working} onRepaint={onRepaint} />
+                  )
+                )
               }
             />
             <RecipeCard idea={idea} ingredients={ingredients} useEverything={useEverything} />
@@ -120,18 +131,19 @@ export function SeeItStep({
             />
           </>
         ) : idea ? (
-          // First concept picture still on its way (or it failed): show which idea it is.
-          <StickerCard tone="sky" emoji={idea.emoji} title={idea.title}>
-            <p className="text-base">{idea.description}</p>
-          </StickerCard>
+          // First concept picture still on its way (or it failed): the idea and its recipe stay,
+          // and only the picture area shows the painting animation or the error.
+          <>
+            <StickerCard tone="sky" emoji={idea.emoji} title={idea.title}>
+              <p className="text-base">{idea.description}</p>
+              {visualizing && <BrewProgress kind="paint" />}
+              {visualizeError && <PictureError message={visualizeError} busy={working} onRetry={onRetryPicture} />}
+            </StickerCard>
+            <RecipeCard idea={idea} ingredients={ingredients} useEverything={useEverything} />
+          </>
         ) : (
           <p className="empty-state">No idea picked yet. Go back to step 3 and pick one!</p>
         )}
-
-        {/* First picture: the painting animation. (Later pictures show it inside the AFTER frame.) */}
-        {visualizing && !conceptImage && <BrewProgress kind="paint" />}
-
-        {visualizeError && <ErrorBox message={visualizeError} onRetry={onRetryPicture} />}
       </div>
     </StepShell>
   );

@@ -19,6 +19,7 @@ type ResultPanelProps = {
   onBack?: () => void; // shows a "Try another idea" button when given
   useEverything?: boolean; // the brew-time setting, for the "uses N of M" stamp
   afterNote?: React.ReactNode; // shown under the AFTER picture (the picture check)
+  pictureOutdated?: boolean; // the picture belongs to the previous version of the idea
 };
 
 // Before/after pictures, build steps and the safety note for the chosen idea.
@@ -33,6 +34,7 @@ export function ResultPanel({
   onBack,
   useEverything = false,
   afterNote,
+  pictureOutdated = false,
 }: ResultPanelProps) {
   return (
     <StickerCard tone="sky" emoji={idea.emoji} title={idea.title} className="pop-in">
@@ -47,8 +49,8 @@ export function ResultPanel({
             <div key={afterImage} className={`pop-in ${painting ? "opacity-60" : ""}`}>
               <Polaroid
                 src={afterImage}
-                alt={`Concept picture of ${idea.title}`}
-                label="After ✨"
+                alt={pictureOutdated ? "Concept picture of the previous version" : `Concept picture of ${idea.title}`}
+                label={pictureOutdated ? "Picture from the previous version" : "After ✨"}
                 tilt="rotate-1"
                 tape="tape-pink"
               />
