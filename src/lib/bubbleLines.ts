@@ -20,6 +20,12 @@ export type BubbleSituation =
   | { kind: "picture"; title: string }
   | { kind: "paint-failed" }
   | { kind: "build"; title: string; manyTweaks: boolean }
+  | { kind: "build-start" }
+  | { kind: "build-preview" }
+  | { kind: "build-step"; n: number }
+  | { kind: "build-last" }
+  | { kind: "build-done" }
+  | { kind: "step-picture-failed" }
   | { kind: "done" }
   | { kind: "slow" };
 
@@ -143,6 +149,42 @@ function variants(s: BubbleSituation): string[] {
       if (s.manyTweaks) lines.push("You kept improving it. That's what real makers do!");
       return lines;
     }
+    case "build-start":
+      return [
+        "Writing your build guide, one clear step at a time…",
+        "Let's plan the build! Grab your ingredients while I write.",
+        "Build Mode, here we go! Planning every step…",
+      ];
+    case "build-preview":
+      return [
+        "Here's everything you need. Ready?",
+        "Check your ingredients and the time. Ready to build?",
+        "That's the whole plan! Read it, then let's go.",
+      ];
+    case "build-step":
+      return [
+        `Step ${s.n}: you're doing great!`,
+        `Step ${s.n}! One thing at a time. Kaya mo 'yan!`,
+        `On to step ${s.n}. Look at you go!`,
+      ];
+    case "build-last":
+      return [
+        "Last step! You're almost there!",
+        "Final step! Finish strong, maker!",
+        "One more step and it's done!",
+      ];
+    case "build-done":
+      return [
+        "You built it! I'm so proud of you!",
+        "All steps done! That's a real invention!",
+        "Finished! From ingredients to invention. Galing!",
+      ];
+    case "step-picture-failed":
+      return [
+        "The paint smudged, but the steps still work!",
+        "No picture this time. The steps are all still here!",
+        "My brush slipped! Keep going, the words have you covered.",
+      ];
     case "done":
       return ["You did it! Now go make it real.", "Project ready! Go build it, maker!", "All set! Kaya mo 'yan!"];
     case "slow":
@@ -154,21 +196,41 @@ function variants(s: BubbleSituation): string[] {
   }
 }
 
-// A random line for this situation, never the same as the line before it.
-export function pickLine(situation: BubbleSituation, previous: string | null): string {
+// A line for this situation, never the same as the line before it.
+// `roll` (0 to 1) chooses among the options, so the same roll always gives the same line.
+function pickLineWith(situation: BubbleSituation, previous: string | null, roll: number): string {
   const options = variants(situation);
   const fresh = options.filter((line) => line !== previous);
   const pool = fresh.length > 0 ? fresh : options;
-  return pool[Math.floor(Math.random() * pool.length)];
+  return pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))];
+}
+
+// A random line for this situation, never the same as the line before it.
+// Only for event handlers and callbacks, never during render (it uses Math.random()).
+export function pickLine(situation: BubbleSituation, previous: string | null): string {
+  return pickLineWith(situation, previous, Math.random());
 }
 
 // The current line. It only changes when the situation changes (a new step, results, an error,
 // a tweak…), not on every render. Uses React's "update state while rendering" pattern.
+//
+// Rendering never uses randomness, so the server and the browser render the same first line:
+// - the first line is always the situation's FIRST variant (no swap after loading, no flicker),
+// - the random number for the NEXT line is rolled after the page has loaded and again after
+//   every new line (never during render), so later lines still vary.
 export function useBubbleLine(situation: BubbleSituation): string {
   const key = JSON.stringify(situation);
-  const [current, setCurrent] = useState(() => ({ key, line: pickLine(situation, null) }));
+  const [current, setCurrent] = useState(() => ({ key, line: variants(situation)[0] }));
+  const [roll, setRoll] = useState(0);
+
+  // Roll a moment after each new line is on screen (a timer, like useLongWait below).
+  useEffect(() => {
+    const timer = setTimeout(() => setRoll(Math.random()), 0);
+    return () => clearTimeout(timer);
+  }, [current.key]);
+
   if (current.key !== key) {
-    const line = pickLine(situation, current.line);
+    const line = pickLineWith(situation, current.line, roll);
     setCurrent({ key, line });
     return line;
   }

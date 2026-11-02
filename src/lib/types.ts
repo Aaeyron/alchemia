@@ -73,6 +73,55 @@ export type PictureCheck = {
   extras: string[]; // things in the picture that aren't in the cauldron
 };
 
+// One step of the Build Mode guide (from /api/guide, already cleaned up in code).
+// Ingredient and tool names are exact cauldron names.
+export type GuideStep = {
+  title: string;
+  instruction: string;
+  ingredients: string[]; // what this step uses as parts of the project
+  tools: string[]; // cauldron items used as tools in this step (may be empty)
+  tip: string; // "" if none
+  safety: string; // "" if the step needs no extra care
+  minutes: number;
+  difficulty: 1 | 2 | 3;
+  result: string; // how the project looks after this step ("" in the simple guide)
+};
+
+// The Build Preview numbers, counted in code from the steps (not by the model).
+export type GuideOverview = {
+  totalMinutes: number;
+  stepCount: number;
+  ingredients: string[]; // every step ingredient, in recipe order
+  tools: string[];
+  maxDifficulty: 1 | 2 | 3;
+  safetySteps: number[]; // step numbers (from 1) with a safety note
+};
+
+export type BuildGuide = {
+  steps: GuideStep[];
+  fallback: boolean; // true = the simple guide made from the idea's own buildSteps
+  overview: GuideOverview;
+};
+
+// The painted picture of one build step (from /api/step-image).
+export type StepImageState = {
+  status: "painting" | "done" | "failed";
+  image?: string; // when done
+  tries: number; // paid attempts so far (1 automatic + up to 2 "Try painting" taps)
+};
+
+// Build Mode for one version of the idea (a tweak or a new picture makes a new version).
+export type BuildState = {
+  idea: Idea; // the version this guide belongs to
+  picture: string | null; // that version's concept picture (null if there is none)
+  reference: string | null; // the same picture, downscaled once, sent to /api/step-image
+  guide: BuildGuide;
+  started: boolean; // false = still on the Build Preview
+  current: number; // index of the step on screen
+  done: boolean[]; // checkmarks, one per step
+  stepImages: Record<number, StepImageState>; // by step index; only steps that were opened (or are next)
+};
+
 export type Idea = {
   title: string;
   emoji: string;

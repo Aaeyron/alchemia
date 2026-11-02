@@ -1,3 +1,5 @@
+import { readRoles } from "@/lib/ideaRules";
+import { describeMaterialList, isContentPolicy, isTemporary, readMaterials, upstreamStatus } from "@/lib/imageRules";
 import { editImage, generateImage } from "@/lib/meta";
 import { checkRateLimit } from "@/lib/rateLimit";
 import type { IngredientRole, MaterialInfo } from "@/lib/types";
@@ -16,55 +18,6 @@ type VisualizeRequest = {
   materials: MaterialInfo[]; // the idea's materials with known colors; may be empty (older callers)
   roles: IngredientRole[]; // what each ingredient becomes in the project; may be empty (older callers)
 };
-
-const isShortText = (value: unknown) => typeof value === "string" && value.length <= 40;
-
-// Optional list of { ingredient, role }. Returns null if it's present but malformed.
-function readRoles(value: unknown): IngredientRole[] | null {
-  if (value === undefined) return [];
-  if (!Array.isArray(value) || value.length > 30) return null;
-  const roles: IngredientRole[] = [];
-  for (const item of value) {
-    if (typeof item !== "object" || item === null) return null;
-    const { ingredient, role } = item as Record<string, unknown>;
-    const good =
-      typeof ingredient === "string" &&
-      ingredient.trim() !== "" &&
-      ingredient.length <= 80 &&
-      typeof role === "string" &&
-      role.trim() !== "" &&
-      role.length <= 80;
-    if (!good) return null;
-    roles.push({ ingredient: ingredient.trim(), role: role.trim() });
-  }
-  return roles;
-}
-
-// Optional list of { name, color?, material?, source }. Returns null if it's present but malformed.
-function readMaterials(value: unknown): MaterialInfo[] | null {
-  if (value === undefined) return [];
-  if (!Array.isArray(value) || value.length > 30) return null;
-  const materials: MaterialInfo[] = [];
-  for (const item of value) {
-    if (typeof item !== "object" || item === null) return null;
-    const { name, color, material, source } = item as Record<string, unknown>;
-    const good =
-      typeof name === "string" &&
-      name.trim() !== "" &&
-      name.length <= 80 &&
-      (color === undefined || isShortText(color)) &&
-      (material === undefined || isShortText(material)) &&
-      (source === "photo" || source === "typed");
-    if (!good) return null;
-    materials.push({
-      name,
-      color: (color as string | undefined)?.trim() || undefined,
-      material: (material as string | undefined)?.trim() || undefined,
-      source,
-    });
-  }
-  return materials;
-}
 
 function isStringList(value: unknown): value is string[] {
   return (
@@ -132,13 +85,7 @@ function roleLines({ roles }: VisualizeRequest): string {
 // "plastic bottle (blue, plastic), tape (no color given)" — falls back to plain names
 // when the page didn't send material details.
 function describeMaterials({ idea, materials }: VisualizeRequest): string {
-  if (materials.length === 0) return idea.materialsUsed.join(", ");
-  return materials
-    .map(({ name, color, material }) => {
-      const details = [color ?? "no color given", material].filter(Boolean).join(", ");
-      return `${name} (${details})`;
-    })
-    .join(", ");
+  return describeMaterialList(materials, idea.materialsUsed);
 }
 
 // Color rules shared by both prompts. `fromPhotos` = the picture starts from the user's photos.
@@ -189,23 +136,6 @@ type Endpoint = "edits" | "generations";
 
 const RETRY_DELAY_MS = 1500;
 const DEADLINE_MS = 200_000; // stop trying new attempts after this, to stay under maxDuration
-
-// The HTTP status in our meta.ts errors ("Muse Image edit failed (400): ..."), if any.
-function upstreamStatus(err: unknown): number | null {
-  const match = err instanceof Error ? err.message.match(/\((\d{3})\)/) : null;
-  return match ? Number(match[1]) : null;
-}
-
-// Meta's content filter rejected the prompt (a 400 with this code).
-function isContentPolicy(err: unknown): boolean {
-  return err instanceof Error && err.message.includes("content_policy_violation");
-}
-
-// Worth one more try: the network failed (fetch throws a TypeError) or Meta had a 5xx error.
-function isTemporary(err: unknown): boolean {
-  const status = upstreamStatus(err);
-  return err instanceof TypeError || (status !== null && status >= 500);
-}
 
 // The same request without the text Muse Spark wrote (title, description, roles), which is what
 // tripped the content filter after a tweak. Only the ingredients and the house rules remain.

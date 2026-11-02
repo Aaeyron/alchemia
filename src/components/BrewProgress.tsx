@@ -7,7 +7,7 @@ import { Mascot } from "@/components/Mascot";
 // "Work-in-progress animations" section in globals.css); reduced-motion users get a
 // still frame with the same text.
 
-export type ProgressKind = "detect" | "segment" | "brew" | "paint" | "tweak" | "voice" | "check";
+export type ProgressKind = "detect" | "segment" | "brew" | "paint" | "tweak" | "voice" | "check" | "guide";
 
 // Friendly messages that rotate while waiting. Honest: no fake percentages.
 const MESSAGES: Record<ProgressKind, string[]> = {
@@ -24,6 +24,7 @@ const MESSAGES: Record<ProgressKind, string[]> = {
   tweak: ["Waving the wand…", "Rearranging the pieces…", "Making it just right…", "Double-checking the rules…"],
   voice: ["Writing it down…", "Thinking about what you said…", "Almost there…"],
   check: ["Comparing the picture with your recipe…", "Looking for each ingredient…"],
+  guide: ["Planning your build…", "Writing each step…", "Checking your ingredients…", "Adding safety tips…"],
 };
 
 const ICONS: Record<ProgressKind, string> = {
@@ -34,6 +35,7 @@ const ICONS: Record<ProgressKind, string> = {
   tweak: "🪄",
   voice: "🎙️",
   check: "🔍",
+  guide: "🛠️",
 };
 
 const PANEL_COLORS: Record<ProgressKind, string> = {
@@ -44,6 +46,7 @@ const PANEL_COLORS: Record<ProgressKind, string> = {
   tweak: "bg-white",
   voice: "bg-white",
   check: "bg-white",
+  guide: "bg-mint-soft",
 };
 
 // Which model is working while each kind of progress shows (plain text, no logos).
@@ -57,6 +60,7 @@ const MODEL_BADGES: Record<ProgressKind, string | null> = {
   tweak: "Muse Spark is redesigning your idea", // /api/tweak
   voice: null,
   check: "Muse Spark is double-checking the picture", // /api/check-picture
+  guide: "Muse Spark is writing your build guide", // /api/guide (also during its single retry)
 };
 
 const ROTATE_MS = 2500;
@@ -153,7 +157,7 @@ export function BrewProgress({
     <div className={`panel items-center ${PANEL_COLORS[kind]}`}>
       {kind === "brew" && <BrewScene emojis={emojis} />}
       {kind === "paint" && <PaintScene />}
-      {kind === "tweak" && <TweakScene />}
+      {(kind === "tweak" || kind === "guide") && <TweakScene />}
       {(kind === "detect" || kind === "segment") && <ScanScene photo={photo} />}
       {kind === "voice" && <VoiceWave />}
       {badge}

@@ -40,6 +40,27 @@ export function readIdeaRequest(body: unknown): IdeaRequest | null {
   return { ingredients, goal: goal.trim(), budgetPhp, timeMinutes, useEverything };
 }
 
+// Optional list of { ingredient, role } from the page. Returns null if it's present but malformed.
+export function readRoles(value: unknown): IngredientRole[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 30) return null;
+  const roles: IngredientRole[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) return null;
+    const { ingredient, role } = item as Record<string, unknown>;
+    const good =
+      typeof ingredient === "string" &&
+      ingredient.trim() !== "" &&
+      ingredient.length <= 80 &&
+      typeof role === "string" &&
+      role.trim() !== "" &&
+      role.length <= 80;
+    if (!good) return null;
+    roles.push({ ingredient: ingredient.trim(), role: role.trim() });
+  }
+  return roles;
+}
+
 // ---------- Prompt helpers (colors, recipe) ----------
 
 // Rule added to the idea prompts so ideas keep the materials' real colors.
@@ -136,7 +157,7 @@ export function isIngredient(item: string, ingredients: string[]): boolean {
 
 // The exact cauldron name a model-written name refers to: same name first, then the loose
 // match above. Undefined if it matches nothing (such names are dropped).
-function snapToCauldron(name: string, cauldron: string[]): string | undefined {
+export function snapToCauldron(name: string, cauldron: string[]): string | undefined {
   const lower = name.toLowerCase().trim();
   return (
     cauldron.find((ingredient) => ingredient.toLowerCase().trim() === lower) ??

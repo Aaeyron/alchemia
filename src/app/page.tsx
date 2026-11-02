@@ -26,7 +26,16 @@ import {
   newId,
   sameName,
 } from "@/lib/ingredients";
-import type { Idea, Ingredient, PhotoBox, PictureCheck, UploadedPhoto, VoiceIntent } from "@/lib/types";
+import type {
+  BuildGuide,
+  BuildState,
+  Idea,
+  Ingredient,
+  PhotoBox,
+  PictureCheck,
+  UploadedPhoto,
+  VoiceIntent,
+} from "@/lib/types";
 
 // Same shape the /api/detect route returns.
 type DetectedObject = {
@@ -52,6 +61,7 @@ type Snapshot = {
   ingredients: string[] | null; // null = the brewed ingredients
   check: PictureCheckState | null; // the picture check of that version
   pictureOutdated: boolean; // that version was showing an older picture
+  build: BuildState | null; // that version's Build Mode (guide, checkmarks, position)
 };
 
 const MAX_PHOTOS = 3;
@@ -59,6 +69,11 @@ const MAX_SIZE = 1024; // longest side, in pixels
 const CHECK_SIZE = 768; // longest side of the concept picture sent to /api/check-picture
 const JPEG_QUALITY = 0.8;
 const MAX_REPAINTS = 2; // "Repaint" after a picture check, per idea
+const MAX_STEP_PICTURE_REQUESTS = 2; // step pictures painted at the same time (the opened step + the next)
+const MAX_STEP_PICTURE_TRIES = 3; // per step: 1 automatic + up to 2 "Try painting this step" taps
+
+// Step pictures asked for with one guide, for the once-per-build usage log.
+type StepPictureUse = { asked: Set<number>; calls: number; ms: number; logged: boolean };
 
 // Read a File into a data URL ("data:image/...;base64,...").
 function readAsDataUrl(file: File): Promise<string> {
@@ -87,6 +102,13 @@ function downscale(dataUrl: string, maxSize = MAX_SIZE): Promise<string> {
     img.onerror = () => reject(new Error("That file doesn't look like an image."));
     img.src = dataUrl;
   });
+}
+
+// How long `work` takes, in milliseconds (for the step picture usage log). `work` handles its own errors.
+async function timeIt(work: () => Promise<void>): Promise<number> {
+  const started = Date.now();
+  await work();
+  return Date.now() - started;
 }
 
 // Same ingredient names, in any order?
@@ -150,6 +172,16 @@ export default function Home() {
   const [tweakError, setTweakError] = useState<string | null>(null);
   const [lastTweak, setLastTweak] = useState<{ kind: TweakKind; missing?: string[] } | null>(null);
 
+  // Build Mode (step 5): the guide for one version of the idea, and its request.
+  const [build, setBuild] = useState<BuildState | null>(null);
+  const [guideLoading, setGuideLoading] = useState(false);
+  const [guideError, setGuideError] = useState<string | null>(null);
+  // Step pictures: how many requests are running, the opened step waiting for a free slot,
+  // and what each guide has asked for (kept outside React state: they change between renders).
+  const stepPicturesRunning = useRef(0);
+  const waitingStepPicture = useRef<{ target: BuildState; index: number } | null>(null);
+  const stepPictureUse = useRef(new WeakMap<BuildGuide, StepPictureUse>());
+
   // True while a voice recording / transcription / voice command is running.
   const [voiceActive, setVoiceActive] = useState(false);
 
@@ -168,6 +200,10 @@ export default function Home() {
   // The idea shown in the result panel: the latest tweak, or the chosen card.
   const shownIdea = tweakedIdea ?? chosenIdea;
   const currentIngredients = tweakIngredients ?? brewedWith?.ingredients ?? [];
+  // The concept picture of the shown version (none while the picture on screen is the previous version's).
+  const buildPicture = pictureOutdated ? null : conceptImage;
+  // Build Mode only counts for the version it was made for: a tweak or a new picture needs a new guide.
+  const currentBuild = build && build.idea === shownIdea && build.picture === buildPicture ? build : null;
 
   // Show another step: jump to the top, and move focus to its heading once it's on screen.
   function goToStep(step: number) {
@@ -202,6 +238,12 @@ export default function Home() {
     setTweaking(false);
     setTweakError(null);
     setLastTweak(null);
+    logStepPictureUse(build?.guide);
+    logStepPictureUse(previous?.build?.guide);
+    waitingStepPicture.current = null;
+    setBuild(null);
+    setGuideLoading(false);
+    setGuideError(null);
   }
 
   // A check that was still running belongs to a picture that's being replaced: drop it,
@@ -474,6 +516,7 @@ export default function Home() {
         ingredients: tweakIngredients,
         check: pictureCheck,
         pictureOutdated,
+        build: currentBuild,
       });
       setTweakedIdea(data.idea);
       setTweakIngredients(data.ingredients);
@@ -501,6 +544,8 @@ export default function Home() {
     setTweakIngredients(previous.ingredients);
     setPictureCheck(previous.check?.status === "checking" ? null : previous.check);
     setPictureOutdated(previous.pictureOutdated);
+    setBuild(previous.build); // that version's guide and checkmarks come back too
+    setGuideError(null);
     setPrevious(null);
     setVisualizing(false);
     setVisualizeError(null);
@@ -511,6 +556,176 @@ export default function Home() {
   function backToIdeas() {
     clearResult(); // the ideas and the chosen card stay as they were
     goToStep(3);
+  }
+
+  // ---------- Build Mode (step 5) ----------
+
+  // Change the Build Mode that owns `guide`, wherever it is now: on screen, or saved as the
+  // previous version (an answer can arrive after a tweak).
+  function updateBuild(guide: BuildGuide, change: (current: BuildState) => BuildState) {
+    setBuild((b) => (b?.guide === guide ? change(b) : b));
+    setPrevious((p) => (p?.build?.guide === guide ? { ...p, build: change(p.build) } : p));
+  }
+
+  // "🛠️ Start Build Mode": ask Muse Spark for the guide of the shown version, then show the preview.
+  async function startBuildMode() {
+    if (!shownIdea || guideLoading) return;
+    const idea = shownIdea;
+    const picture = buildPicture;
+    const id = requestId.current; // a tweak, new picture or new idea changes this: the answer is then ignored
+    logStepPictureUse(build?.guide); // the build this one replaces
+    setGuideError(null);
+    setGuideLoading(true);
+
+    // The concept picture is shrunk once (in the browser) and reused for every step picture.
+    // If that fails (e.g. a URL the canvas may not read), the original is sent instead.
+    const reference = picture ? downscale(picture).catch(() => picture) : Promise.resolve(null);
+
+    try {
+      const guidePromise = postJson<BuildGuide>("/api/guide", {
+        idea: {
+          title: idea.title,
+          description: idea.description,
+          materialsUsed: idea.materialsUsed,
+          roles: idea.roles,
+          buildSteps: idea.buildSteps,
+          safetyNote: idea.safetyNote,
+          timeMinutes: idea.timeMinutes,
+          difficulty: idea.difficulty,
+        },
+        ingredients: currentIngredients,
+      });
+      const [guide, smallPicture] = await Promise.all([guidePromise, reference]);
+      if (id !== requestId.current) return;
+      setBuild({
+        idea,
+        picture,
+        reference: smallPicture,
+        guide,
+        started: false,
+        current: 0,
+        done: guide.steps.map(() => false),
+        stepImages: {},
+      });
+    } catch (err) {
+      if (id === requestId.current) setGuideError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setGuideLoading(false);
+    }
+  }
+
+  // Show step `index` of the guide on screen, and paint its picture (and the next one's).
+  function openBuildStep(target: BuildState, index: number) {
+    updateBuild(target.guide, (b) => ({ ...b, started: true, current: index }));
+    wantStepPictures(target, index);
+  }
+
+  // "✓ Done": check the step, then go to the next one (the last step stays on screen).
+  function finishBuildStep() {
+    if (!currentBuild) return;
+    const { current, guide } = currentBuild;
+    updateBuild(guide, (b) => ({ ...b, done: b.done.map((done, i) => done || i === current) }));
+    if (current < guide.steps.length - 1) openBuildStep(currentBuild, current + 1);
+    else logStepPictureUse(guide); // all done: report this build's picture use once
+  }
+
+  // ---------- Step pictures (only for steps the user opens, plus the next one) ----------
+
+  function stepPictureUseOf(guide: BuildGuide): StepPictureUse {
+    let use = stepPictureUse.current.get(guide);
+    if (!use) {
+      use = { asked: new Set(), calls: 0, ms: 0, logged: false };
+      stepPictureUse.current.set(guide, use);
+    }
+    return use;
+  }
+
+  // Once per build, in the browser console: how many step pictures were asked for, and how long
+  // they took (to check credit use). Never the pictures themselves.
+  function logStepPictureUse(guide: BuildGuide | undefined) {
+    const use = guide && stepPictureUse.current.get(guide);
+    if (!use || use.calls === 0 || use.logged) return;
+    use.logged = true;
+    console.info(`Build Mode: ${use.calls} step picture request(s), ${(use.ms / 1000).toFixed(1)} s in total`);
+  }
+
+  // Does this step get a painted picture? Not in the simple guide, not without a concept picture,
+  // and not the last step (it shows the concept picture of the finished project).
+  function paintsStepPicture(target: BuildState, index: number): boolean {
+    return !target.guide.fallback && target.picture !== null && index >= 0 && index < target.guide.steps.length - 1;
+  }
+
+  // Paint the opened step's picture, then prefetch the next step's. Never more than
+  // MAX_STEP_PICTURE_REQUESTS at a time: if all are busy, the opened step goes next.
+  function wantStepPictures(target: BuildState, index: number) {
+    waitingStepPicture.current = null;
+    const use = stepPictureUseOf(target.guide);
+    for (const i of [index, index + 1]) {
+      if (!paintsStepPicture(target, i) || use.asked.has(i)) continue;
+      if (stepPicturesRunning.current >= MAX_STEP_PICTURE_REQUESTS) {
+        if (i === index) waitingStepPicture.current = { target, index };
+        return;
+      }
+      paintStepPicture(target, i);
+    }
+  }
+
+  // "🎨 Try painting this step" (at most MAX_STEP_PICTURE_TRIES paid attempts per step).
+  function retryStepPicture() {
+    if (!currentBuild) return;
+    const { current, guide, stepImages } = currentBuild;
+    if ((stepImages[current]?.tries ?? 0) >= MAX_STEP_PICTURE_TRIES) return;
+    stepPictureUseOf(guide).asked.delete(current);
+    wantStepPictures(currentBuild, current);
+  }
+
+  async function paintStepPicture(target: BuildState, index: number) {
+    const { guide } = target;
+    const use = stepPictureUseOf(guide);
+    use.asked.add(index);
+    stepPicturesRunning.current++;
+    const tries = (target.stepImages[index]?.tries ?? 0) + 1;
+    const setState = (state: BuildState["stepImages"][number]) =>
+      updateBuild(guide, (b) => ({ ...b, stepImages: { ...b.stepImages, [index]: state } }));
+    setState({ status: "painting", tries });
+
+    // Every ingredient used in steps 1..n (with colors): a step picture shows what's built so far.
+    const usedSoFar = [...new Set(guide.steps.slice(0, index + 1).flatMap((step) => step.ingredients))];
+    const step = guide.steps[index];
+    const ms = await timeIt(async () => {
+      try {
+        const data = await postJson<{ image: string }>("/api/step-image", {
+          picture: target.reference ?? target.picture,
+          photo: photos[0]?.dataUrl, // already downscaled when it was uploaded
+          step: { title: step.title, result: step.result || step.title, ingredients: step.ingredients },
+          stepNumber: index + 1,
+          totalSteps: guide.steps.length,
+          materials: describeMaterials(ingredients, usedSoFar),
+          title: target.idea.title,
+        });
+        setState({ status: "done", image: data.image, tries });
+      } catch (err) {
+        console.error(`Couldn't paint step ${index + 1}:`, err instanceof Error ? err.message : err);
+        setState({ status: "failed", tries });
+      }
+    });
+
+    stepPicturesRunning.current--;
+    use.calls++;
+    use.ms += ms;
+    // A step that was opened while both slots were busy goes next.
+    const waiting = waitingStepPicture.current;
+    if (waiting) wantStepPictures(waiting.target, waiting.index);
+  }
+
+  // "← Back": the step before, or the preview from step 1.
+  function buildStepBack() {
+    if (!currentBuild) return;
+    if (currentBuild.current === 0) {
+      updateBuild(currentBuild.guide, (b) => ({ ...b, started: false }));
+    } else {
+      openBuildStep(currentBuild, currentBuild.current - 1);
+    }
   }
 
   // Voice: ask /api/voice-intent what the user meant, then do the same thing the buttons do.
@@ -550,7 +765,7 @@ export default function Home() {
   }
 
   // Can't start a recording while anything else is running.
-  const busy = loading || brewing || visualizing || tweaking;
+  const busy = loading || brewing || visualizing || tweaking || guideLoading;
   const voiceButton = (
     <VoiceButton
       disabled={busy || voiceActive}
@@ -573,7 +788,7 @@ export default function Home() {
     .map((ingredient) => ingredient.name);
 
   // A brew, picture or tweak is running: buttons that would cancel or replace it wait.
-  const working = brewing || visualizing || tweaking;
+  const working = brewing || visualizing || tweaking || guideLoading;
   const canBrew = selectedIngredients.length > 0 && goal.trim() !== "" && !working;
   const brewBlockedReason =
     selectedIngredients.length === 0
@@ -636,7 +851,7 @@ export default function Home() {
   const settledGoal = useSettledValue(goal.trim(), 1000);
   // The same request running for 12 s (like BrewProgress's "still working" hint).
   const longWait = useLongWait(
-    loading ? "detect" : brewing ? "brew" : tweaking ? "tweak" : visualizing ? "paint" : null
+    loading ? "detect" : brewing ? "brew" : tweaking ? "tweak" : visualizing ? "paint" : guideLoading ? "guide" : null
   );
 
   function bubbleSituation(): BubbleSituation {
@@ -661,8 +876,17 @@ export default function Home() {
         if (visualizeError) return { kind: "paint-failed" };
         if (visualizing) return { kind: "painting", title };
         return { kind: "picture", title };
-      default:
-        return { kind: "build", title, manyTweaks: tweakCount >= 3 };
+      default: {
+        if (guideLoading) return { kind: "build-start" };
+        if (!currentBuild) return { kind: "build", title, manyTweaks: tweakCount >= 3 };
+        const { started, current, done, guide, stepImages } = currentBuild;
+        const last = guide.steps.length - 1;
+        if (!started) return { kind: "build-preview" };
+        if (done[last]) return { kind: "build-done" };
+        if (stepImages[current]?.status === "failed") return { kind: "step-picture-failed" };
+        if (current === last) return { kind: "build-last" };
+        return { kind: "build-step", n: current + 1 };
+      }
     }
   }
   const bubbleLine = useBubbleLine(bubbleSituation());
@@ -812,6 +1036,22 @@ export default function Home() {
               canStartNew={!loading && !working && !voiceActive}
               onBack={() => goToStep(4)}
               onStartNew={startNewInvention}
+              build={currentBuild}
+              guideLoading={guideLoading}
+              guideError={guideError}
+              canStartBuild={!working}
+              startBuildReason={
+                visualizing || tweaking ? "Wait for the new concept picture first" : "Wait for Alchemia to finish first"
+              }
+              onStartBuild={startBuildMode}
+              onBeginSteps={() => currentBuild && openBuildStep(currentBuild, currentBuild.current)}
+              onStepDone={finishBuildStep}
+              onStepBack={buildStepBack}
+              onJumpToStep={(index) => currentBuild && openBuildStep(currentBuild, index)}
+              canRetryStepPicture={
+                (currentBuild?.stepImages[currentBuild.current]?.tries ?? 0) < MAX_STEP_PICTURE_TRIES
+              }
+              onRetryStepPicture={retryStepPicture}
             />
           )}
         </div>
