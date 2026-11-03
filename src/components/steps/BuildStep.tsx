@@ -196,9 +196,10 @@ export function BuildStep({
       cheer={cheerLine !== null}
       bubbling={bubbling}
       headingRef={headingRef}
-      back={{ label: "← Back to the picture", onClick: onBack }}
+      back={{ label: "← Back to the picture", short: "← Back", onClick: onBack }}
       next={{
         label: "🔄 Start a new invention",
+        short: "🔄 Start over",
         onClick: onStartNew,
         disabled: !canStartNew,
         reason: "Wait for Alchemia to finish first",

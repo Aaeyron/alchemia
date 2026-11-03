@@ -4,12 +4,24 @@ import { Squiggle } from "@/components/Doodles";
 import { SpeechBubble } from "@/components/SpeechBubble";
 
 // One button in the bottom action bar. `reason` is shown when the button is disabled.
+// `short` is shown instead of `label` on phones, so the bar stays one line; `label` stays its name.
 export type StepAction = {
   label: string;
+  short?: string;
   onClick: () => void;
   disabled?: boolean;
   reason?: string;
 };
+
+function ActionLabel({ action }: { action: StepAction }) {
+  if (!action.short) return action.label;
+  return (
+    <>
+      <span className="sm:hidden">{action.short}</span>
+      <span className="hidden sm:inline">{action.label}</span>
+    </>
+  );
+}
 
 type StepShellProps = {
   emoji: string;
@@ -64,8 +76,13 @@ export function StepShell({
           <div className="sticker flex flex-col gap-2 bg-white p-3">
             <div className="flex gap-3">
               {back && (
-                <Button onClick={back.onClick} disabled={back.disabled} className="min-h-12">
-                  {back.label}
+                <Button
+                  onClick={back.onClick}
+                  disabled={back.disabled}
+                  aria-label={back.short ? back.label : undefined}
+                  className="min-h-12 whitespace-nowrap"
+                >
+                  <ActionLabel action={back} />
                 </Button>
               )}
               {next && (
@@ -74,10 +91,11 @@ export function StepShell({
                   size="large"
                   onClick={next.onClick}
                   disabled={next.disabled}
+                  aria-label={next.short ? next.label : undefined}
                   aria-describedby={next.disabled && next.reason ? "step-reason" : undefined}
-                  className="flex-1"
+                  className="flex-1 whitespace-nowrap py-2"
                 >
-                  {next.label}
+                  <ActionLabel action={next} />
                 </Button>
               )}
             </div>

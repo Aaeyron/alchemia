@@ -83,12 +83,14 @@ export function SeeItStep({
       headingRef={headingRef}
       back={{
         label: "← Try another idea",
+        short: "← Ideas",
         onClick: onTryAnother,
         disabled: working,
         reason: "Wait for Alchemia to finish first",
       }}
       next={{
         label: "🛠️ How do I build it?",
+        short: "🛠️ Build it",
         onClick: onBuild,
         disabled: idea === null,
         reason: "Pick an idea first",

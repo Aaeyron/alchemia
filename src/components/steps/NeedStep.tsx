@@ -42,6 +42,7 @@ export function NeedStep(props: NeedStepProps) {
       back={{ label: "← Back", onClick: props.onBack }}
       next={{
         label: "🧪 Brew possibilities",
+        short: "🧪 Brew ideas",
         onClick: props.onBrew,
         disabled: !props.canBrew,
         reason: props.brewBlockedReason,

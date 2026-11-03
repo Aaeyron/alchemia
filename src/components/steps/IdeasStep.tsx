@@ -38,7 +38,7 @@ export function IdeasStep(props: IdeasStepProps) {
       say={props.say}
       bubbling={props.bubbling}
       headingRef={props.headingRef}
-      back={{ label: "← Change my goal", onClick: props.onBack }}
+      back={{ label: "← Change my goal", short: "← Goal", onClick: props.onBack }}
       next={{
         label: "✨ Show me!",
         onClick: props.onShowMe,
