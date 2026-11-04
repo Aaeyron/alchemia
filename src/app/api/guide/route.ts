@@ -86,13 +86,15 @@ function readGuideRequest(body: unknown): GuideRequest | null {
 // ---------- The prompt ----------
 
 // One step object, to anchor the format (few-shot).
-const STEP_EXAMPLE = `{"title": "Cut the bottle in half", "instruction": "Hold the bottle on its side. Cut around the middle if you have scissors. If not, ask a grown-up to score it with a ruler edge and bend it.", "ingredients": ["plastic bottle"], "tools": [], "tip": "Draw a line first so the cut is straight.", "safety": "Cut edges can be sharp. Ask a grown-up to help.", "minutes": 3, "difficulty": 2, "result": "The bottle is cut in half; the bottom half stands upright on the table, with a smooth rim."}`;
+const STEP_EXAMPLE = `{"title": "Cut the bottle in half", "instruction": "Lay the bottle on its side. If you have scissors, cut all the way around it about a hand's width (10 cm) up from the bottom. If not, ask a grown-up to cut it for you.", "ingredients": ["plastic bottle"], "tools": [], "tip": "Draw a line first so the cut is straight.", "safety": "Cut edges can be sharp. Ask a grown-up to help.", "minutes": 3, "difficulty": 2, "result": "The bottle is cut in half; the bottom half stands upright on the table, with a smooth rim."}`;
 
 function buildPrompt({ idea, ingredients }: GuideRequest): string {
   const roles = idea.roles.map(({ ingredient, role }) => `${ingredient} is ${role}`).join("; ");
   const steps = idea.buildSteps.map((step, i) => `${i + 1}. ${step}`).join(" ");
 
   return `You write clear, friendly build guides for students.
+The reader is a student with basic tools at most, building alone at a desk.
+Priorities, in this order: safe > buildable with these ingredients > matches the idea > fits the time.
 
 Task: Expand this idea into a step-by-step build guide.
 
@@ -109,8 +111,15 @@ Rules:
 1. Write ${MIN_STEPS} to ${MAX_STEPS} steps, in a logical build order. The steps' minutes should add up to about ${idea.timeMinutes}.
 2. Use ONLY the ingredients in the list. Copy their names exactly. Do not invent tools unless
    they are in the ingredient list. If a step needs a common tool that is not listed (like
-   scissors or tape), say "if you have it" and give a way to do it without that tool.
+   scissors or tape), say "if you have it" and give a way to do it without that tool (for
+   example: tear along a sharp fold, tie with string, fold a tab).
 3. Use simple words. One action per sentence. At most 3 sentences per step.
+   Be concrete: say which part goes where, and give real sizes or simple references when
+   they help ("about 10 cm", "about a hand's width", "two fingers from the top").
+   Every join must say how it is made (tie, wrap, fold, slot, tuck).
+   Avoid vague steps like "decorate it", "assemble the parts" or "attach A to B" with no method.
+   Make sure openings are wide enough for what the object holds or stores. If a container's
+   opening is too narrow (like a bottle neck), cut it wider or choose another design.
 4. Any step with cutting, heat, electricity or chemicals needs a safety note. Include
    "Ask a grown-up to help" where it fits. Otherwise safety is "".
 5. "result": at most 25 words describing how the project looks AFTER this step. Describe only
@@ -121,6 +130,9 @@ Rules:
 
 Example of ONE step object:
 ${STEP_EXAMPLE}
+
+BAD instruction (do NOT write like this): "Attach the cardboard to the bottle and decorate it."
+Why it is bad: it does not say how to attach, and "decorate" is not a clear action.
 
 Return JSON only (no explanation, no markdown), exactly this shape:
 {"steps": [ {"title": string (max 6 words), "instruction": string, "ingredients": string[], "tools": string[], "tip": string, "safety": string, "minutes": number, "difficulty": 1 | 2 | 3, "result": string} ]}`;

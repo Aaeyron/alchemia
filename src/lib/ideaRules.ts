@@ -68,12 +68,39 @@ export const COLOR_RULE = `- Materials keep their own colors. Do not suggest pai
   anything unless a paint, marker or similar item is in the ingredient list. When you describe
   the finished project, use the materials' real colors.`;
 
+// Audience, priorities and "practical first" rules added to the idea prompts.
+export const PRACTICAL_RULES = `Who this is for: a student at home or at school, with basic tools at most.
+Priorities, in this order: 1) safe, 2) buildable with these ingredients, 3) solves the goal,
+4) fits the budget and time, 5) fun.
+- title: 2-5 plain words that say what the object is (for example "Paper-Wrapped Pen Cup").
+  No invented names, brand-style names or puns.
+- description: one plain sentence that says what the finished object is and how it is used.
+- Give each ingredient a job it can really do. Skip an ingredient rather than force it into
+  a role that makes no sense (for example, paper alone cannot hold weight).
+- Make sure openings are wide enough for what the object holds or stores. If a container's
+  opening is too narrow (like a bottle neck), cut it wider or choose another design.
+- buildSteps: 3-6 short steps in build order, one action per sentence. Say how parts are
+  joined (tie with string, fold a tab, slot through a slit, wrap). If a step needs scissors or
+  tape that is not listed, say what to do without it (tear along a fold, tie a knot).
+- Give real sizes when they help ("about 10 cm tall", "about a hand's width").
+- Avoid: made-up materials, vague steps like "decorate it" or "assemble the parts", and joins
+  with no method (like "attach the cardboard to the bottle").`;
+
+// One good and one bad idea (few-shot), with only the fields that show the style.
+export const IDEA_STYLE_EXAMPLES = `GOOD example (ingredients: plastic cup, paper, string; only some fields shown):
+{"title": "Paper-Wrapped Pen Cup", "description": "A plastic cup wrapped in paper that stands on your desk and holds about 10 pens.", "buildSteps": ["Wrap the paper around the outside of the cup.", "Tie the string around the middle of the cup to hold the paper.", "Double-knot the string and tuck the ends under it.", "Stand the cup on your desk and put your pens in."]}
+BAD example (do NOT write like this):
+{"title": "The Stringinator 3000", "description": "A magical creation that brings your desk to life.", "buildSteps": ["Attach the string to the cup.", "Decorate it.", "Enjoy!"]}
+Why it is bad: an invented title, the description does not say what it is or how it is used,
+and the steps are vague and do not say how to attach.`;
+
 // Rules added to the idea prompts so every cauldron ingredient gets a role or a reason.
 export function recipeRules(useEverything: boolean): string {
   const everything = useEverything
     ? "\n- The student wants to use EVERY listed ingredient. Use all of them, if it makes sense."
     : "";
-  return `- Use as many of the listed ingredients as sensibly possible.${everything}
+  return `- Use as many of the listed ingredients as make sense for the goal. Skipping one is better
+  than forcing it in.${everything}
 - roles: for each ingredient you use, what it becomes in the finished project
   (2-6 words, for example "the pen cup").
 - skipped: each listed ingredient you do NOT use, with a short reason.

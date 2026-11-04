@@ -1,6 +1,8 @@
 import {
   COLOR_RULE,
   IDEA_JSON_EXAMPLE,
+  IDEA_STYLE_EXAMPLES,
+  PRACTICAL_RULES,
   askForIdeas,
   recipeRules,
   isIngredient,
@@ -89,7 +91,7 @@ description (for example: "Uses the cup instead of the bottle").`;
     case "weird":
       return `Make an unexpected, playful, imaginative version of this idea.
 Keep the same goal, the same ingredients and the same limits.
-It must still be buildable and safe.`;
+It must still be buildable and safe. Keep the title plain and the steps practical.`;
     case "easier":
       return `Make this idea easier: fewer build steps, fewer materials, a shorter time and an
 easier difficulty than the current version. Keep the same goal.`;
@@ -98,6 +100,7 @@ easier difficulty than the current version. Keep the same goal.`;
 
 function buildPrompt(req: TweakRequest): string {
   return `You are Alchemia, a friendly invention helper for students.
+${PRACTICAL_RULES}
 
 Goal: ${req.goal}
 Ingredients (the ONLY materials available; colors in brackets): ${listIngredients(req.ingredients, req.colors)}
@@ -120,6 +123,8 @@ ${COLOR_RULE}
 - Write in simple, friendly English a student can follow.
 - safetyNote: if the idea involves sharp tools, heat, electricity or chemicals, give a
   short safety tip. Otherwise write "Looks safe!".
+
+${IDEA_STYLE_EXAMPLES}
 
 Return JSON only — no explanation, no markdown — as an array with exactly 1 object:
 [${IDEA_JSON_EXAMPLE}]`;

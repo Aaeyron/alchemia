@@ -1,6 +1,8 @@
 import {
   COLOR_RULE,
   IDEA_JSON_EXAMPLE,
+  IDEA_STYLE_EXAMPLES,
+  PRACTICAL_RULES,
   askForIdeas,
   recipeRules,
   listIngredients,
@@ -19,6 +21,7 @@ function buildPrompt(
   colors: Record<string, string>
 ): string {
   return `You are Alchemia, a friendly invention helper for students.
+${PRACTICAL_RULES}
 
 Goal: ${goal}
 Ingredients (the ONLY materials available; colors in brackets): ${listIngredients(ingredients, colors)}
@@ -37,6 +40,8 @@ ${COLOR_RULE}
 - Write in simple, friendly English a student can follow.
 - safetyNote: if the idea involves sharp tools, heat, electricity or chemicals, give a
   short safety tip. Otherwise write "Looks safe!".
+
+${IDEA_STYLE_EXAMPLES}
 
 Return JSON only — no explanation, no markdown — as an array of exactly 3 objects:
 [${IDEA_JSON_EXAMPLE}]`;
